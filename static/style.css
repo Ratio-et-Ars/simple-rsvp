@@ -176,6 +176,17 @@ a.event-card:hover { text-decoration: none; }
 }
 .countdown svg { width: 14px; height: 14px; }
 
+/* Grey "Over" pill for past events */
+.badge-past {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  background: rgba(58, 48, 39, 0.10); color: var(--ink-soft);
+  font-weight: 800; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 0.4rem 0.9rem; border-radius: 999px;
+}
+.badge-past svg { width: 14px; height: 14px; }
+/* Gently fade a past event's cover so it reads as archived */
+.event-card.is-past .thumb, .invitation.is-past .cover { filter: grayscale(0.35) opacity(0.85); }
+
 /* ---- Event (invitation) page ---- */
 .invitation { padding: 0; }
 .invitation .cover {

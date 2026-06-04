@@ -14,19 +14,21 @@
     <div class="event-list">
       {% for v in events %}
         {% set e = v.event %}
-        <a class="card pinned event-card" href="{{ url_for('event_page', slug=e.slug) }}">
+        <a class="card pinned event-card{{ ' is-past' if v.is_past }}" href="{{ url_for('event_page', slug=e.slug) }}">
           {% if v.cover_url %}<img class="thumb" src="{{ v.cover_url }}" alt="{{ e.title }}">{% endif %}
           <h3>{{ e.title }}</h3>
           <p class="event-when">{{ v.date_str }}{% if v.time_str %} · {{ v.time_str }}{% endif %}</p>
           {% if e.location %}<p class="event-where">{{ e.location }}</p>{% endif %}
-          {% if v.countdown %}
-            <p style="margin:0.6rem 0 0">
+          <p style="margin:0.6rem 0 0">
+            {% if v.countdown %}
               <span class="countdown">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
                 {{ v.countdown }}
               </span>
-            </p>
-          {% endif %}
+            {% elif v.is_past %}
+              <span class="badge-past">Over</span>
+            {% endif %}
+          </p>
         </a>
       {% endfor %}
     </div>
