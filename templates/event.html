@@ -4,7 +4,7 @@
 {% block headwide %} mid{% endblock %}
 {% block nav %}<nav><a class="backlink" href="{{ url_for('home') }}">← Back to events</a></nav>{% endblock %}
 {% block content %}
-  <section class="card pinned invitation">
+  <section class="card pinned invitation{{ ' is-past' if is_past }}">
     {% if cover_url %}<img class="cover" src="{{ cover_url }}" alt="{{ event.title }}">{% endif %}
     <div class="body">
       <h1>{{ event.title }}</h1>
@@ -34,6 +34,8 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
           {{ countdown }}
         </span>
+      {% elif is_past %}
+        <span class="badge-past">Over</span>
       {% endif %}
 
       {% if event.description %}<p class="desc">{{ event.description }}</p>{% endif %}
