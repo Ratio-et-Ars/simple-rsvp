@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Upcoming Events{% endblock %}
+{% block content %}
+  {% if events %}
+    <h1 class="center">Upcoming Events</h1>
+    <div class="event-list">
+      {% for v in events %}
+        {% set e = v.event %}
+        <a class="card event-card" href="{{ url_for('event_page', slug=e.slug) }}">
+          {% if v.cover_url %}<img class="thumb" src="{{ v.cover_url }}" alt="{{ e.title }}">{% endif %}
+          <h3>{{ e.title }}</h3>
+          <p class="event-meta">{{ v.date_str }}{% if v.time_str %} · {{ v.time_str }}{% endif %}</p>
+          {% if e.location %}<p class="event-meta">{{ e.location }}</p>{% endif %}
+          {% if v.countdown %}<span class="countdown">{{ v.countdown }}</span>{% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card center stack">
+      <h1>No Upcoming Events</h1>
+      <p class="muted">Check back later — or follow the link you were given to RSVP to a private event.</p>
+    </div>
+  {% endif %}
+{% endblock %}

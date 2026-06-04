@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title }}{% endblock %}
+{% block content %}
+  <h1 class="center">{{ event.title }}</h1>
+
+  {% if cover_url %}
+    <img class="cover" src="{{ cover_url }}" alt="{{ event.title }}">
+  {% endif %}
+
+  <div class="center stack">
+    <h3>{{ date_str }}</h3>
+    {% if time_str %}<h4 class="muted">Join us at {{ time_str }}</h4>{% endif %}
+    {% if event.location %}
+      <h4>{{ event.location }}</h4>
+      {% if maps_url %}
+        <p><a href="{{ maps_url }}" target="_blank" rel="noopener">📍 View on Google Maps</a></p>
+      {% endif %}
+    {% endif %}
+    {% if countdown %}<p><span class="countdown">{{ countdown }}</span></p>{% endif %}
+  </div>
+
+  {% if event.description %}
+    <div class="card" style="margin-top:1.5rem">{{ event.description }}</div>
+  {% endif %}
+
+  {% if show_form %}
+    <h2 class="center" style="margin-top:2rem">Please RSVP</h2>
+    <form class="card" method="post" action="{{ url_for('submit_rsvp', slug=event.slug) }}">
+      <label>Name<input name="name" required autocomplete="name"></label>
+      <div class="row">
+        <label>Adults<input type="number" name="adults" value="1" min="0"></label>
+        <label>Kids<input type="number" name="kids" value="0" min="0"></label>
+      </div>
+      <label>Notes<input name="notes" placeholder="Bringing a side dish, dietary needs, …"></label>
+      <button type="submit" class="btn-block">Submit RSVP</button>
+    </form>
+  {% elif is_past %}
+    <h2 class="center" style="margin-top:2rem">Thanks for coming!</h2>
+  {% else %}
+    <p class="center muted" style="margin-top:2rem">RSVPs are not currently open for this event.</p>
+  {% endif %}
+{% endblock %}

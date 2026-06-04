@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Admin · {{ event.title }}{% endblock %}
+{% block content %}
+  <p><a href="{{ url_for('admin') }}">← Back to events</a></p>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+    <h1>{{ event.title }}</h1>
+    <a class="btn btn-secondary" href="{{ url_for('event_page', slug=event.slug) }}" target="_blank">View public page ↗</a>
+  </div>
+  <p class="muted">/{{ event.slug }}</p>
+
+  <p><strong>{{ counts.total }} total guests</strong> ({{ counts.adults }} adults, {{ counts.kids }} kids)
+    &nbsp;·&nbsp; <a href="{{ url_for('export_csv', slug=event.slug) }}">Download CSV</a></p>
+
+  <hr>
+  <h2>RSVPs</h2>
+  {% if rsvps %}
+    <div class="stack">
+      {% for r in rsvps %}
+        <form class="card" method="post" action="{{ url_for('admin_edit_rsvp', slug=event.slug, rsvp_id=r.id) }}">
+          <div class="row">
+            <label>Name<input name="name" value="{{ r.name }}"></label>
+            <label>Notes<input name="notes" value="{{ r.notes }}"></label>
+          </div>
+          <div class="row">
+            <label>Adults<input type="number" name="adults" value="{{ r.adults }}" min="0"></label>
+            <label>Kids<input type="number" name="kids" value="{{ r.kids }}" min="0"></label>
+          </div>
+          <div class="btn-row" style="justify-content:flex-end">
+            <button type="submit">Save</button>
+            <button type="submit" name="delete" value="1" class="btn-danger"
+                    onclick="return confirm('Delete this RSVP?')">Delete</button>
+          </div>
+        </form>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No RSVPs yet.</p>
+  {% endif %}
+
+  <hr>
+  <h2>Event Details</h2>
+  <form class="card" method="post" action="{{ url_for('admin_edit_event', slug=event.slug) }}">
+    <label>Title<input name="title" value="{{ event.title }}" required></label>
+    <label>Date &amp; Time<input type="datetime-local" name="datetime" value="{{ event.datetime[:16] }}" required></label>
+    <label>Location<input name="location" value="{{ event.location }}"></label>
+    <label>Description<textarea name="description">{{ event.description }}</textarea></label>
+    <label class="check"><input type="checkbox" name="active" {{ 'checked' if event.active }}> Accepting RSVPs</label>
+    <label class="check"><input type="checkbox" name="listed" {{ 'checked' if event.listed }}> Show on the public home page</label>
+    <button type="submit" style="margin-top:0.5rem">Save Details</button>
+  </form>
+
+  <hr>
+  <h2>Cover Image</h2>
+  {% if event.cover %}
+    <img class="cover" src="{{ url_for('cover', slug=event.slug) }}" alt="Current cover" style="max-height:240px">
+  {% endif %}
+  <form class="card" method="post" action="{{ url_for('upload_cover', slug=event.slug) }}" enctype="multipart/form-data">
+    <label>Upload a new cover<input type="file" name="cover" accept="image/png,image/jpeg,image/webp" required></label>
+    <button type="submit" class="btn-secondary">Upload</button>
+  </form>
+
+  <hr>
+  <h2>Danger Zone</h2>
+  <form method="post" action="{{ url_for('admin_delete_event', slug=event.slug) }}"
+        onsubmit="return confirm('Delete this event and all its RSVPs? This cannot be undone.')">
+    <button type="submit" class="btn-danger">Delete this event</button>
+  </form>
+{% endblock %}

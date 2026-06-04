@@ -1,2 +1,3 @@
-flask
-pillow
+Flask>=3.0,<4.0
+pillow>=10.0,<12.0
+waitress>=3.0,<4.0

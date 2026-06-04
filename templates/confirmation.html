@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}RSVP Confirmed{% endblock %}
+{% block content %}
+  <div class="card center stack" style="margin-top:2rem">
+    <h1>Thank you for the RSVP!</h1>
+    <p style="font-size:1.15rem">See you {{ date_str }}{% if time_str %} at {{ time_str }}{% endif %}.</p>
+    <p><a href="{{ url_for('event_page', slug=event.slug) }}">← Back to event</a></p>
+  </div>
+{% endblock %}

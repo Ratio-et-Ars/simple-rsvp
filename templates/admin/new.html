@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Admin · New Event{% endblock %}
+{% block content %}
+  <p><a href="{{ url_for('admin') }}">← Back to events</a></p>
+  <h1>New Event</h1>
+  <form class="card" method="post" action="{{ url_for('admin_new') }}">
+    <label>Title<input name="title" required></label>
+    <label>Slug (URL) <span class="muted" style="font-weight:400">— optional, generated from the title if blank</span>
+      <input name="slug" placeholder="cigar-club">
+    </label>
+    <label>Date &amp; Time<input type="datetime-local" name="datetime" required></label>
+    <label>Location<input name="location"></label>
+    <label>Description<textarea name="description"></textarea></label>
+    <label class="check"><input type="checkbox" name="active" checked> Accepting RSVPs</label>
+    <label class="check"><input type="checkbox" name="listed"> Show on the public home page</label>
+    <button type="submit" class="btn-block" style="margin-top:0.5rem">Create Event</button>
+  </form>
+{% endblock %}

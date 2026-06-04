@@ -1,25 +1,16 @@
-version: '3.8'
-
 services:
   rsvp:
-    image: python:3.11-slim
+    # Build locally, or swap `build: .` for the published image:
+    #   image: ghcr.io/ratio-et-ars/simple-rsvp:latest
+    build: .
     container_name: rsvp-app
-    working_dir: /app
-    volumes:
-      - app_data:/app/data
-    restart: unless-stopped
-
-volumes:
-  app_data:
     ports:
       - "8080:3022"
     environment:
-      - ADMIN_PASSWORD=letmein  # Change this for security
-    command: >
-      sh -c "
-      pip install --no-cache-dir -r requirements.txt &&
-      python app.py
-      "
+      # CHANGE THIS before exposing the app to the internet.
+      ADMIN_PASSWORD: "letmein"
+    volumes:
+      - app_data:/app/data
     restart: unless-stopped
 
 volumes:
