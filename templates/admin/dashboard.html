@@ -1,12 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Admin · Events{% endblock %}
 {% block content %}
+  {% set ns = namespace(adults=0, kids=0) %}
+  {% for e in events %}{% set ns.adults = ns.adults + (e.total_adults or 0) %}{% set ns.kids = ns.kids + (e.total_kids or 0) %}{% endfor %}
   <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
     <h1>Events</h1>
     <a class="btn" href="{{ url_for('admin_new') }}">+ New Event</a>
   </div>
 
   {% if events %}
+    <p class="muted" style="margin-top:-0.25rem">
+      {{ events|length }} event{{ '' if events|length == 1 else 's' }} ·
+      <strong style="color:var(--ink)">{{ ns.adults + ns.kids }} guests</strong> total
+      ({{ ns.adults }} adults, {{ ns.kids }} kids)
+    </p>
     <table>
       <thead>
         <tr><th>Event</th><th>When</th><th>Guests</th><th>Status</th></tr>
@@ -19,7 +26,10 @@
               <span class="muted" style="font-size:0.85rem">/{{ e.slug }}</span>
             </td>
             <td class="muted">{{ e.datetime[:10] }}</td>
-            <td>{{ (e.total_adults or 0) + (e.total_kids or 0) }}</td>
+            <td>
+              <strong>{{ (e.total_adults or 0) + (e.total_kids or 0) }}</strong>
+              <span class="muted" style="font-size:0.82rem">({{ e.total_adults or 0 }} adults, {{ e.total_kids or 0 }} kids)</span>
+            </td>
             <td>
               <span class="badge {{ 'badge-on' if e.active else 'badge-off' }}">{{ 'Active' if e.active else 'Closed' }}</span>
               {% if e.listed %}<span class="badge badge-on">Listed</span>{% else %}<span class="badge">Unlisted</span>{% endif %}
@@ -27,6 +37,14 @@
           </tr>
         {% endfor %}
       </tbody>
+      <tfoot>
+        <tr>
+          <th>All events</th>
+          <th></th>
+          <th>{{ ns.adults + ns.kids }} guests</th>
+          <th></th>
+        </tr>
+      </tfoot>
     </table>
   {% else %}
     <div class="card center stack">
