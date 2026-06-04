@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A self-hosted, multi-event RSVP tracker. One instance hosts many events, each at
-`/<slug>`. The public home page (`/`) lists only events that are **listed AND
-active AND in the future**; unlisted events stay reachable by their slug URL but
+`/<slug>`. The public home page (`/`) lists every event that is **listed AND active**
+(upcoming first, then past events most-recent-first); the `listed` toggle is the
+only curation control. Unlisted events stay reachable by their slug URL but
 never appear there — that is the entire privacy model (no per-event password).
 
 Read `CONTRIBUTING.md`: simplicity is treated as a hard product constraint

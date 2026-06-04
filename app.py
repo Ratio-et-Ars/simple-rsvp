@@ -117,9 +117,11 @@ def basic_auth_required(f):
 
 @app.route("/")
 def home():
-    events = [event_view(e) for e in db.list_events(only_listed=True, only_active=True)]
-    events = [v for v in events if not v["is_past"]]
-    return render_template("index.html", events=events)
+    views = [event_view(e) for e in db.list_events(only_listed=True, only_active=True)]
+    # Upcoming first (soonest at top), then past events (most recent first).
+    upcoming = [v for v in views if not v["is_past"]]
+    past = [v for v in views if v["is_past"]][::-1]
+    return render_template("index.html", events=upcoming + past)
 
 
 @app.route("/cover/<slug>")

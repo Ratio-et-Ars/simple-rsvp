@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Upcoming Events{% endblock %}
+{% block title %}Events{% endblock %}
 {% block content %}
   {% if events %}
-    <h1 class="center">Upcoming Events</h1>
+    <h1 class="center">Events</h1>
     <div class="event-list">
       {% for v in events %}
         {% set e = v.event %}
@@ -17,7 +17,7 @@
     </div>
   {% else %}
     <div class="card center stack">
-      <h1>No Upcoming Events</h1>
+      <h1>No Events Yet</h1>
       <p class="muted">Check back later — or follow the link you were given to RSVP to a private event.</p>
     </div>
   {% endif %}

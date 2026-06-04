@@ -31,7 +31,7 @@ def auth():
 def test_home_empty(client):
     r = client.get("/")
     assert r.status_code == 200
-    assert b"No Upcoming Events" in r.data
+    assert b"No Events Yet" in r.data
 
 
 def test_admin_requires_auth(client):
@@ -82,6 +82,15 @@ def test_unlisted_event_hidden_from_home_but_reachable(client):
     })  # listed unchecked
     assert b"Secret" not in client.get("/").data
     assert client.get("/secret").status_code == 200
+
+
+def test_past_listed_event_shows_on_home(client):
+    # A listed + active event in the past still appears on the home page.
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Old Harvest Picnic", "datetime": "2000-01-01T12:00",
+        "active": "on", "listed": "on",
+    })
+    assert b"Old Harvest Picnic" in client.get("/").data
 
 
 def test_missing_event_404(client):
