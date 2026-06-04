@@ -7,8 +7,9 @@ services:
     ports:
       - "8080:3022"
     environment:
-      # CHANGE THIS before exposing the app to the internet.
-      ADMIN_PASSWORD: "letmein"
+      # Required. Set ADMIN_PASSWORD in your shell or a .env file before
+      # `docker compose up`; the app refuses to start without it.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
     volumes:
       - app_data:/app/data
     restart: unless-stopped

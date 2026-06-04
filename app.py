@@ -7,29 +7,59 @@ by HTTP Basic Auth.
 """
 
 import csv
+import hmac
 import io
 import os
 import re
 import secrets
 from datetime import date, datetime, timedelta
 from functools import wraps
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 
 from flask import (
     Flask, Response, abort, make_response, redirect, render_template, request,
     send_from_directory, url_for,
 )
+from werkzeug.exceptions import HTTPException
 from PIL import Image, ImageOps
 
 import db
 
+# Cap decoded image size to defend against decompression-bomb uploads.
+Image.MAX_IMAGE_PIXELS = 30_000_000
+
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB upload cap
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "letmein")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
+if not ADMIN_PASSWORD:
+    raise SystemExit("Set the ADMIN_PASSWORD environment variable before starting.")
+
 ALLOWED_EXTENSIONS = ("png", "jpg", "jpeg", "webp")
+# Map Pillow's decoded format to the extension we save under. Trusting the
+# decoded format (not the uploaded filename) means a renamed file can't smuggle
+# in an unexpected type.
+FORMAT_TO_EXT = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp"}
 
 app.teardown_appcontext(db.close_db)
+
+
+@app.after_request
+def set_security_headers(resp):
+    # The app serves only same-origin assets (no CDN). Inline <script>/<style>
+    # and on* handlers in the templates require 'unsafe-inline'; the noise
+    # background in style.css is an inline data: SVG, hence img-src data:.
+    resp.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+    )
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "same-origin")
+    return resp
 
 
 # --- Helpers ----------------------------------------------------------------
@@ -52,10 +82,39 @@ def unique_slug(base):
 
 
 def safe_int(value):
+    # Clamp to a sane range so a single RSVP can't claim billions of guests.
     try:
-        return max(0, int(value))
+        return min(100000, max(0, int(value)))
     except (TypeError, ValueError):
         return 0
+
+
+def csv_safe(value):
+    """Neutralize CSV/spreadsheet formula injection.
+
+    A cell that begins with ``= + - @`` (or a tab/CR) can be interpreted as a
+    formula by Excel/Sheets. Prefix such values with a single quote so the
+    spreadsheet treats them as plain text.
+    """
+    text = "" if value is None else str(value)
+    if text and text[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + text
+    return text
+
+
+def check_csrf():
+    """Reject cross-site state-changing requests.
+
+    Browsers send an ``Origin`` header on cross-site (and most same-site) POSTs.
+    If it's present and its host differs from the request host, the POST came
+    from another site, so block it. When ``Origin`` is absent we allow it: some
+    legitimate same-origin form posts omit it, and same-site GETs never set it.
+    """
+    origin = request.headers.get("Origin")
+    if not origin:
+        return
+    if urlsplit(origin).netloc != request.host:
+        abort(403)
 
 
 def format_datetime(dt_str):
@@ -152,7 +211,9 @@ def basic_auth_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         auth = request.authorization
-        if not auth or auth.username != "admin" or auth.password != ADMIN_PASSWORD:
+        ok = bool(auth) and hmac.compare_digest(auth.username or "", "admin") \
+            and hmac.compare_digest(auth.password or "", ADMIN_PASSWORD)
+        if not ok:
             return Response(
                 "Login required", 401,
                 {"WWW-Authenticate": "Basic realm='RSVP Admin'"},
@@ -193,6 +254,7 @@ def event_page(slug):
 
 @app.route("/<slug>/rsvp", methods=["POST"])
 def submit_rsvp(slug):
+    check_csrf()
     event = db.get_event(slug)
     if not event:
         abort(404)
@@ -229,6 +291,7 @@ def submit_rsvp(slug):
 
 @app.route("/<slug>/rsvp/cancel", methods=["POST"])
 def cancel_rsvp(slug):
+    check_csrf()
     event = db.get_event(slug)
     if not event:
         abort(404)
@@ -253,6 +316,7 @@ def admin():
 @basic_auth_required
 def admin_new():
     if request.method == "POST":
+        check_csrf()
         title = request.form["title"].strip()
         base = slugify(request.form.get("slug", "").strip() or title)
         slug = unique_slug(base)
@@ -288,6 +352,7 @@ def admin_event(slug):
 @app.route("/admin/<slug>/edit", methods=["POST"])
 @basic_auth_required
 def admin_edit_event(slug):
+    check_csrf()
     if not db.get_event(slug):
         abort(404)
     db.update_event(
@@ -306,6 +371,7 @@ def admin_edit_event(slug):
 @app.route("/admin/<slug>/delete", methods=["POST"])
 @basic_auth_required
 def admin_delete_event(slug):
+    check_csrf()
     event = db.get_event(slug)
     if not event:
         abort(404)
@@ -318,6 +384,7 @@ def admin_delete_event(slug):
 @app.route("/admin/<slug>/rsvp/<int:rsvp_id>", methods=["POST"])
 @basic_auth_required
 def admin_edit_rsvp(slug, rsvp_id):
+    check_csrf()
     if not db.get_event(slug):
         abort(404)
     if "delete" in request.form:
@@ -343,7 +410,9 @@ def export_csv(slug):
     writer = csv.writer(buf)
     writer.writerow(["Name", "Adults", "Kids", "Notes"])
     for r in db.list_rsvps(event["id"]):
-        writer.writerow([r["name"], r["adults"], r["kids"], r["notes"]])
+        writer.writerow([
+            csv_safe(r["name"]), r["adults"], r["kids"], csv_safe(r["notes"]),
+        ])
     return Response(
         buf.getvalue(),
         mimetype="text/csv",
@@ -362,21 +431,32 @@ def _remove_cover_files(slug):
 @app.route("/admin/<slug>/upload", methods=["POST"])
 @basic_auth_required
 def upload_cover(slug):
+    check_csrf()
     if not db.get_event(slug):
         abort(404)
     file = request.files.get("cover")
-    if not file or not file.filename.lower().endswith(tuple(f".{e}" for e in ALLOWED_EXTENSIONS)):
+    if not file or not file.filename:
         abort(400, "Invalid file")
-    ext = file.filename.rsplit(".", 1)[-1].lower()
-    os.makedirs(db.UPLOAD_DIR, exist_ok=True)
-    _remove_cover_files(slug)  # only one cover per event
-    img = Image.open(file.stream)
-    img = ImageOps.exif_transpose(img)  # honor phone-photo rotation
-    img.thumbnail((1600, 900))
-    if img.mode not in ("RGB", "L"):
-        img = img.convert("RGB")
-    filename = f"{slug}.{ext}"
-    img.save(os.path.join(db.UPLOAD_DIR, filename))
+    # Trust the decoded image, not the uploaded filename. Pillow validates the
+    # actual bytes; a too-large or malformed image raises and we 400 cleanly.
+    try:
+        img = Image.open(file.stream)
+        ext = FORMAT_TO_EXT.get(img.format)
+        if ext is None:
+            abort(400, "Invalid image")
+        img = ImageOps.exif_transpose(img)  # honor phone-photo rotation
+        img.thumbnail((1600, 900))
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        os.makedirs(db.UPLOAD_DIR, exist_ok=True)
+        _remove_cover_files(slug)  # only one cover per event
+        filename = f"{slug}.{ext}"
+        img.save(os.path.join(db.UPLOAD_DIR, filename))
+    except HTTPException:
+        raise  # let our own abort(400) through
+    except Exception:
+        # Malformed image, unsupported codec, or a decompression bomb.
+        abort(400, "Invalid image")
     db.set_cover(slug, filename)
     return redirect(url_for("admin_event", slug=slug))
 

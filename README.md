@@ -23,7 +23,10 @@ own URL (`/cigar-club`, `/summer-feast`, …).
 
 ### Docker (recommended)
 
+`ADMIN_PASSWORD` is **required** — the app refuses to start without it.
+
 ```bash
+export ADMIN_PASSWORD="choose-a-strong-password"
 docker compose up -d
 ```
 
@@ -43,6 +46,7 @@ docker run -d -p 8080:3022 \
 
 ```bash
 pip install -r requirements.txt
+export ADMIN_PASSWORD="choose-a-strong-password"   # required
 python app.py            # http://localhost:3022
 ```
 
@@ -52,7 +56,7 @@ python app.py            # http://localhost:3022
 
 | Env var          | Default   | Purpose                                  |
 | ---------------- | --------- | ---------------------------------------- |
-| `ADMIN_PASSWORD` | `letmein` | Password for the `admin` user. **Change it.** |
+| `ADMIN_PASSWORD` | _(none)_  | **Required.** Password for the `admin` user; the app exits at startup if unset. |
 | `PORT`           | `3022`    | Port the app listens on.                 |
 | `DATA_DIR`       | `data`    | Where `rsvp.db` and uploaded covers live (the Docker volume). |
 | `FLASK_DEBUG`    | _off_     | Set to `1` to enable Flask debug mode (local dev only). |
