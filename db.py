@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS events (
     title       TEXT    NOT NULL,
     datetime    TEXT    NOT NULL,
     location    TEXT    NOT NULL DEFAULT '',
+    address     TEXT    NOT NULL DEFAULT '',
     description TEXT    NOT NULL DEFAULT '',
     cover       TEXT,
     active      INTEGER NOT NULL DEFAULT 1,
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS rsvps (
     adults     INTEGER NOT NULL DEFAULT 0,
     kids       INTEGER NOT NULL DEFAULT 0,
     notes      TEXT    NOT NULL DEFAULT '',
+    token      TEXT,
     created_at TEXT    NOT NULL
 );
 
@@ -69,6 +71,13 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     try:
         conn.executescript(SCHEMA)
+        # Add columns introduced after a DB may already exist.
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(events)")]
+        if "address" not in cols:
+            conn.execute("ALTER TABLE events ADD COLUMN address TEXT NOT NULL DEFAULT ''")
+        rcols = [r[1] for r in conn.execute("PRAGMA table_info(rsvps)")]
+        if "token" not in rcols:
+            conn.execute("ALTER TABLE rsvps ADD COLUMN token TEXT")
         conn.commit()
     finally:
         conn.close()
@@ -105,27 +114,27 @@ def slug_exists(slug):
     return get_event(slug) is not None
 
 
-def create_event(slug, title, dt, location, description, active=True, listed=False):
+def create_event(slug, title, dt, location, description, active=True, listed=False, address=""):
     db = get_db()
     db.execute(
-        """INSERT INTO events (slug, title, datetime, location, description,
+        """INSERT INTO events (slug, title, datetime, location, address, description,
                                active, listed, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (slug, title, dt, location, description,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (slug, title, dt, location, address, description,
          int(active), int(listed), _now()),
     )
     db.commit()
     return get_event(slug)
 
 
-def update_event(slug, title, dt, location, description, active, listed):
+def update_event(slug, title, dt, location, description, active, listed, address=""):
     db = get_db()
     db.execute(
         """UPDATE events
-           SET title = ?, datetime = ?, location = ?, description = ?,
+           SET title = ?, datetime = ?, location = ?, address = ?, description = ?,
                active = ?, listed = ?
            WHERE slug = ?""",
-        (title, dt, location, description, int(active), int(listed), slug),
+        (title, dt, location, address, description, int(active), int(listed), slug),
     )
     db.commit()
 
@@ -162,14 +171,22 @@ def guest_counts(event_id):
     return {"adults": adults, "kids": kids, "total": adults + kids}
 
 
-def add_rsvp(event_id, name, adults, kids, notes):
+def add_rsvp(event_id, name, adults, kids, notes, token=None):
     db = get_db()
     db.execute(
-        """INSERT INTO rsvps (event_id, name, adults, kids, notes, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (event_id, name, adults, kids, notes, _now()),
+        """INSERT INTO rsvps (event_id, name, adults, kids, notes, token, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (event_id, name, adults, kids, notes, token, _now()),
     )
     db.commit()
+
+
+def get_rsvp_by_token(token):
+    if not token:
+        return None
+    return get_db().execute(
+        "SELECT * FROM rsvps WHERE token = ?", (token,)
+    ).fetchone()
 
 
 def update_rsvp(rsvp_id, name, adults, kids, notes):

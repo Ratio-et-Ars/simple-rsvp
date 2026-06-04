@@ -31,7 +31,7 @@ def auth():
 def test_home_empty(client):
     r = client.get("/")
     assert r.status_code == 200
-    assert b"No Events Yet" in r.data
+    assert b"No Gatherings Pinned Up" in r.data
 
 
 def test_admin_requires_auth(client):
@@ -56,7 +56,7 @@ def test_create_event_and_rsvp_flow(client):
     page = client.get("/cigar-club")
     assert page.status_code == 200
     assert b"Cigar Club" in page.data
-    assert b"Submit RSVP" in page.data
+    assert b"Save my spot" in page.data
 
     # It shows up on the public landing page (listed + active + future).
     assert b"Cigar Club" in client.get("/").data
@@ -66,7 +66,7 @@ def test_create_event_and_rsvp_flow(client):
         "name": "Jane", "adults": "2", "kids": "1", "notes": "On my way",
     })
     assert conf.status_code == 200
-    assert b"Thank you" in conf.data
+    assert b"You're on the list!" in conf.data
 
     # Counts reflected in admin + CSV export.
     admin = client.get("/admin/cigar-club", headers=auth())

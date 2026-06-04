@@ -33,3 +33,6 @@ Thumbs.db
 
 # GitHub Actions cache
 .github/__pycache__/
+
+# Stitch design scratch/mockups
+.stitch/

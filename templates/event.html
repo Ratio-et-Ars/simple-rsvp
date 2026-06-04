@@ -1,42 +1,104 @@
 {% extends "base.html" %}
 {% block title %}{{ event.title }}{% endblock %}
+{% block mainwide %} mid{% endblock %}
+{% block headwide %} mid{% endblock %}
+{% block nav %}<nav><a class="backlink" href="{{ url_for('home') }}">← Back to events</a></nav>{% endblock %}
 {% block content %}
-  <h1 class="center">{{ event.title }}</h1>
+  <section class="card pinned invitation">
+    {% if cover_url %}<img class="cover" src="{{ cover_url }}" alt="{{ event.title }}">{% endif %}
+    <div class="body">
+      <h1>{{ event.title }}</h1>
 
-  {% if cover_url %}
-    <img class="cover" src="{{ cover_url }}" alt="{{ event.title }}">
-  {% endif %}
+      <div class="meta-grid">
+        <div class="meta-row">
+          <svg class="ico-sage" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
+          <div>
+            <strong>{{ date_str }}</strong>
+            {% if time_str %}<span class="sub">Join us at {{ time_str }}</span>{% endif %}
+          </div>
+        </div>
+        {% if event.location %}
+        <div class="meta-row">
+          <svg class="ico-denim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          <div>
+            <strong>{{ event.location }}</strong>
+            {% if event.address %}<span class="sub">{{ event.address }}</span>{% endif %}
+            {% if maps_url %}<a class="maps-link" href="{{ maps_url }}" target="_blank" rel="noopener">View on Google Maps</a>{% endif %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
 
-  <div class="center stack">
-    <h3>{{ date_str }}</h3>
-    {% if time_str %}<h4 class="muted">Join us at {{ time_str }}</h4>{% endif %}
-    {% if event.location %}
-      <h4>{{ event.location }}</h4>
-      {% if maps_url %}
-        <p><a href="{{ maps_url }}" target="_blank" rel="noopener">📍 View on Google Maps</a></p>
+      {% if countdown %}
+        <span class="countdown">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          {{ countdown }}
+        </span>
       {% endif %}
-    {% endif %}
-    {% if countdown %}<p><span class="countdown">{{ countdown }}</span></p>{% endif %}
-  </div>
 
-  {% if event.description %}
-    <div class="card" style="margin-top:1.5rem">{{ event.description }}</div>
-  {% endif %}
+      {% if event.description %}<p class="desc">{{ event.description }}</p>{% endif %}
+    </div>
+  </section>
 
   {% if show_form %}
-    <h2 class="center" style="margin-top:2rem">Please RSVP</h2>
-    <form class="card" method="post" action="{{ url_for('submit_rsvp', slug=event.slug) }}">
-      <label>Name<input name="name" required autocomplete="name"></label>
-      <div class="row">
-        <label>Adults<input type="number" name="adults" value="1" min="0"></label>
-        <label>Kids<input type="number" name="kids" value="0" min="0"></label>
-      </div>
-      <label>Notes<input name="notes" placeholder="Bringing a side dish, dietary needs, …"></label>
-      <button type="submit" class="btn-block">Submit RSVP</button>
-    </form>
+    <section class="card {{ 'taped tape-sage' if my_rsvp else 'pinned' }}">
+      <header class="center" style="margin-bottom:1.5rem;">
+        {% if my_rsvp %}
+          <h2 style="margin-bottom:0.35rem;">You're coming, {{ my_rsvp.name }}!</h2>
+          <p class="muted" style="margin:0;">
+            {{ my_rsvp.adults }} adult{{ '' if my_rsvp.adults == 1 else 's' }}{% if my_rsvp.kids %}, {{ my_rsvp.kids }} kid{{ '' if my_rsvp.kids == 1 else 's' }}{% endif %}.
+            Update below, or <button form="cancel-rsvp" type="submit" class="linklike" onclick="return confirm('Remove your RSVP?')">cancel your RSVP</button>.
+          </p>
+          {% if gcal_url %}
+          <p style="margin:1rem 0 0;">
+            <a class="btn btn-secondary" href="{{ gcal_url }}" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
+              Add to Google Calendar
+            </a>
+          </p>
+          {% endif %}
+        {% else %}
+          <h2>Please RSVP</h2>
+          <p class="muted" style="font-style:italic;margin:0;">We can't wait to see you there!</p>
+        {% endif %}
+      </header>
+      <form method="post" action="{{ url_for('submit_rsvp', slug=event.slug) }}">
+        <div style="margin-bottom:1.25rem;">
+          <div class="field-label">Your Name</div>
+          <input class="input-underline" name="name" placeholder="Full name please" required autocomplete="name"
+                 value="{{ my_rsvp.name if my_rsvp else '' }}">
+        </div>
+
+        {% set a_val = my_rsvp.adults if my_rsvp else 1 %}
+        {% set k_val = my_rsvp.kids if my_rsvp else 0 %}
+        <div class="counters">
+          {% for kind, label, val in [('adults', 'Adults', a_val), ('kids', 'Kids', k_val)] %}
+          <div class="counter {{ 'kids' if kind == 'kids' }}" data-counter>
+            <div class="field-label">{{ label }} <span class="counter-num" aria-hidden="true">{{ val }}</span></div>
+            <div class="counter-box">
+              <div class="counter-icons" aria-hidden="true"></div>
+              <input class="count-fallback" type="number" name="{{ kind }}" min="0" max="99" value="{{ val }}" aria-label="{{ label }}" placeholder="#">
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div style="margin-bottom:1.25rem;">
+          <div class="field-label">Notes &amp; Requests</div>
+          <textarea name="notes" placeholder="Bringing a side dish? Dietary needs? Let us know!">{{ my_rsvp.notes if my_rsvp else '' }}</textarea>
+        </div>
+
+        <button type="submit" class="btn-block">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/></svg>
+          {{ 'Update my RSVP' if my_rsvp else 'Save my spot' }}
+        </button>
+      </form>
+      {% if my_rsvp %}<form id="cancel-rsvp" method="post" action="{{ url_for('cancel_rsvp', slug=event.slug) }}" hidden></form>{% endif %}
+    </section>
   {% elif is_past %}
-    <h2 class="center" style="margin-top:2rem">Thanks for coming!</h2>
+    <h2 class="center" style="margin-top:2rem;">Thanks for coming!</h2>
   {% else %}
-    <p class="center muted" style="margin-top:2rem">RSVPs are not currently open for this event.</p>
+    <p class="center muted" style="margin-top:2rem;">RSVPs are not currently open for this event.</p>
   {% endif %}
 {% endblock %}
+{% block scripts %}<script defer src="{{ url_for('static', filename='rsvp.js') }}"></script>{% endblock %}

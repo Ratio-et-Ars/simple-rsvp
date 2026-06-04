@@ -10,15 +10,16 @@ import csv
 import io
 import os
 import re
-from datetime import date, datetime
+import secrets
+from datetime import date, datetime, timedelta
 from functools import wraps
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from flask import (
-    Flask, Response, abort, redirect, render_template, request,
+    Flask, Response, abort, make_response, redirect, render_template, request,
     send_from_directory, url_for,
 )
-from PIL import Image
+from PIL import Image, ImageOps
 
 import db
 
@@ -81,10 +82,8 @@ def event_view(event):
         countdown, is_past = "", False
     elif days_remaining < 0:
         countdown, is_past = "", True
-    elif days_remaining == 0:
-        countdown, is_past = "Today!", False
     else:
-        countdown, is_past = f"{days_remaining} days to go", False
+        countdown, is_past = humanize_countdown(days_remaining), False
 
     date_str, time_str = format_datetime(event["datetime"])
     return {
@@ -94,10 +93,59 @@ def event_view(event):
         "countdown": countdown,
         "is_past": is_past,
         "show_form": bool(event["active"]) and not is_past,
-        "maps_url": "https://www.google.com/maps/search/?api=1&query="
-                    + quote(event["location"]) if event["location"] else None,
-        "cover_url": url_for("cover", slug=event["slug"]) if event["cover"] else None,
+        "maps_url": maps_url(event),
+        "gcal_url": gcal_url(event),
+        "cover_url": cover_url(event),
     }
+
+
+def gcal_url(event):
+    """'Add to Google Calendar' link. No end time in the schema, so default +2h."""
+    try:
+        start = datetime.fromisoformat(event["datetime"])
+    except (TypeError, ValueError):
+        return None
+    fmt = "%Y%m%dT%H%M%S"
+    params = {
+        "action": "TEMPLATE",
+        "text": event["title"],
+        "dates": start.strftime(fmt) + "/" + (start + timedelta(hours=2)).strftime(fmt),
+        "details": event["description"] or "",
+        "location": (event["address"] or "").strip() or (event["location"] or "").strip(),
+    }
+    return "https://calendar.google.com/calendar/render?" + urlencode(params)
+
+
+def humanize_countdown(days):
+    """Round a day count to a friendly unit ('Tomorrow', '3 weeks to go')."""
+    if days == 0:
+        return "Today!"
+    if days == 1:
+        return "Tomorrow"
+    if days < 14:
+        return f"{days} days to go"
+    if days < 60:
+        return f"{round(days / 7)} weeks to go"
+    return f"{round(days / 30)} months to go"
+
+
+def maps_url(event):
+    """Google Maps search URL — uses the address if given, else the location name."""
+    query = (event["address"] or "").strip() or (event["location"] or "").strip()
+    if not query:
+        return None
+    return "https://www.google.com/maps/search/?api=1&query=" + quote(query)
+
+
+def cover_url(event):
+    """Cover image URL with an mtime cache-buster so a re-upload shows at once."""
+    if not event["cover"]:
+        return None
+    try:
+        version = int(os.path.getmtime(os.path.join(db.UPLOAD_DIR, event["cover"])))
+    except OSError:
+        version = 0
+    return url_for("cover", slug=event["slug"]) + f"?v={version}"
 
 
 def basic_auth_required(f):
@@ -137,7 +185,10 @@ def event_page(slug):
     event = db.get_event(slug)
     if not event:
         abort(404)
-    return render_template("event.html", **event_view(event))
+    my_rsvp = db.get_rsvp_by_token(request.cookies.get("rsvp_" + slug))
+    if my_rsvp and my_rsvp["event_id"] != event["id"]:
+        my_rsvp = None
+    return render_template("event.html", my_rsvp=my_rsvp, **event_view(event))
 
 
 @app.route("/<slug>/rsvp", methods=["POST"])
@@ -151,17 +202,42 @@ def submit_rsvp(slug):
     name = request.form.get("name", "").strip()
     if not name:
         abort(400)
-    db.add_rsvp(
-        event["id"],
-        name,
-        safe_int(request.form.get("adults", 1)),
-        safe_int(request.form.get("kids", 0)),
-        request.form.get("notes", "").strip(),
-    )
-    return render_template(
+    adults = safe_int(request.form.get("adults", 1))
+    kids = safe_int(request.form.get("kids", 0))
+    notes = request.form.get("notes", "").strip()[:1000]
+
+    # If this browser already holds a token for an RSVP to this event, update
+    # that row instead of creating a duplicate. The token is an unguessable
+    # capability — only the submitter's browser can edit their own RSVP.
+    existing = db.get_rsvp_by_token(request.cookies.get("rsvp_" + slug))
+    if existing and existing["event_id"] == event["id"]:
+        token = existing["token"]
+        db.update_rsvp(existing["id"], name[:200], adults, kids, notes)
+    else:
+        token = secrets.token_urlsafe(16)
+        db.add_rsvp(event["id"], name[:200], adults, kids, notes, token)
+
+    resp = make_response(render_template(
         "confirmation.html",
         event=event, date_str=view["date_str"], time_str=view["time_str"],
-    )
+        gcal_url=view["gcal_url"], updated=bool(existing and existing["event_id"] == event["id"]),
+    ))
+    resp.set_cookie("rsvp_" + slug, token, max_age=60 * 60 * 24 * 400,
+                    samesite="Lax", httponly=True)
+    return resp
+
+
+@app.route("/<slug>/rsvp/cancel", methods=["POST"])
+def cancel_rsvp(slug):
+    event = db.get_event(slug)
+    if not event:
+        abort(404)
+    existing = db.get_rsvp_by_token(request.cookies.get("rsvp_" + slug))
+    if existing and existing["event_id"] == event["id"]:
+        db.delete_rsvp(existing["id"])
+    resp = make_response(redirect(url_for("event_page", slug=slug)))
+    resp.delete_cookie("rsvp_" + slug)
+    return resp
 
 
 # --- Admin routes -----------------------------------------------------------
@@ -185,6 +261,7 @@ def admin_new():
             title=title,
             dt=request.form["datetime"],
             location=request.form.get("location", "").strip(),
+            address=request.form.get("address", "").strip(),
             description=request.form.get("description", "").strip(),
             active=request.form.get("active") == "on",
             listed=request.form.get("listed") == "on",
@@ -204,6 +281,7 @@ def admin_event(slug):
         event=event,
         rsvps=db.list_rsvps(event["id"]),
         counts=db.guest_counts(event["id"]),
+        cover_url=cover_url(event),
     )
 
 
@@ -217,6 +295,7 @@ def admin_edit_event(slug):
         title=request.form["title"].strip(),
         dt=request.form["datetime"],
         location=request.form.get("location", "").strip(),
+        address=request.form.get("address", "").strip(),
         description=request.form.get("description", "").strip(),
         active=request.form.get("active") == "on",
         listed=request.form.get("listed") == "on",
@@ -292,7 +371,10 @@ def upload_cover(slug):
     os.makedirs(db.UPLOAD_DIR, exist_ok=True)
     _remove_cover_files(slug)  # only one cover per event
     img = Image.open(file.stream)
+    img = ImageOps.exif_transpose(img)  # honor phone-photo rotation
     img.thumbnail((1600, 900))
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
     filename = f"{slug}.{ext}"
     img.save(os.path.join(db.UPLOAD_DIR, filename))
     db.set_cover(slug, filename)

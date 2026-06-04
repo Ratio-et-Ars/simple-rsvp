@@ -1,9 +1,17 @@
 {% extends "base.html" %}
 {% block title %}RSVP Confirmed{% endblock %}
 {% block content %}
-  <div class="card center stack" style="margin-top:2rem">
-    <h1>Thank you for the RSVP!</h1>
-    <p style="font-size:1.15rem">See you {{ date_str }}{% if time_str %} at {{ time_str }}{% endif %}.</p>
-    <p><a href="{{ url_for('event_page', slug=event.slug) }}">← Back to event</a></p>
+  <div class="card taped tape-sage center stack" style="max-width:520px;margin:2.5rem auto;">
+    {% if updated %}<h1>Your RSVP is updated!</h1>{% else %}<h1>You're on the list!</h1>{% endif %}
+    <p style="font-size:1.15rem;">See you {{ date_str }}{% if time_str %} at {{ time_str }}{% endif %}.</p>
+    {% if gcal_url %}
+    <p style="margin:0.5rem 0 0;">
+      <a class="btn btn-secondary" href="{{ gcal_url }}" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
+        Add to Google Calendar
+      </a>
+    </p>
+    {% endif %}
+    <p style="margin:1.75rem 0 0;"><a href="{{ url_for('event_page', slug=event.slug) }}">← Back to {{ event.title }}</a></p>
   </div>
 {% endblock %}

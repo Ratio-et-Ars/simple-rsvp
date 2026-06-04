@@ -9,7 +9,12 @@
       <input name="slug" placeholder="cigar-club">
     </label>
     <label>Date &amp; Time<input type="datetime-local" name="datetime" required></label>
-    <label>Location<input name="location"></label>
+    <label>Location <span class="muted" style="font-weight:400">— display name, e.g. "The Fuhry Residence"</span>
+      <input name="location" placeholder="The Fuhry Residence">
+    </label>
+    <label>Map address <span class="muted" style="font-weight:400">— optional; what "View on Google Maps" searches for</span>
+      <input name="address" placeholder="123 Main St, Vienna, OH">
+    </label>
     <label>Description<textarea name="description"></textarea></label>
     <label class="check"><input type="checkbox" name="active" checked> Accepting RSVPs</label>
     <label class="check"><input type="checkbox" name="listed"> Show on the public home page</label>

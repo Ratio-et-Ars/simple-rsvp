@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Not Found{% endblock %}
 {% block content %}
-  <div class="card center stack" style="margin-top:2rem">
-    <h1>Not Found</h1>
-    <p class="muted">There's no event here. Double-check your link.</p>
-    <p><a href="{{ url_for('home') }}">← Home</a></p>
+  <div class="card taped tape-red center stack" style="max-width:480px;margin:2.5rem auto;">
+    <h1>Nothing Pinned Here</h1>
+    <p class="muted">There's no event at this link. Double-check the address.</p>
+    <p style="margin:0;"><a href="{{ url_for('home') }}">← Back home</a></p>
   </div>
 {% endblock %}

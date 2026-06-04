@@ -42,7 +42,12 @@
   <form class="card" method="post" action="{{ url_for('admin_edit_event', slug=event.slug) }}">
     <label>Title<input name="title" value="{{ event.title }}" required></label>
     <label>Date &amp; Time<input type="datetime-local" name="datetime" value="{{ event.datetime[:16] }}" required></label>
-    <label>Location<input name="location" value="{{ event.location }}"></label>
+    <label>Location <span class="muted" style="font-weight:400">— display name</span>
+      <input name="location" value="{{ event.location }}" placeholder="The Fuhry Residence">
+    </label>
+    <label>Map address <span class="muted" style="font-weight:400">— optional; used by the Google Maps link</span>
+      <input name="address" value="{{ event.address }}" placeholder="123 Main St, Vienna, OH">
+    </label>
     <label>Description<textarea name="description">{{ event.description }}</textarea></label>
     <label class="check"><input type="checkbox" name="active" {{ 'checked' if event.active }}> Accepting RSVPs</label>
     <label class="check"><input type="checkbox" name="listed" {{ 'checked' if event.listed }}> Show on the public home page</label>
@@ -51,13 +56,33 @@
 
   <hr>
   <h2>Cover Image</h2>
-  {% if event.cover %}
-    <img class="cover" src="{{ url_for('cover', slug=event.slug) }}" alt="Current cover" style="max-height:240px">
-  {% endif %}
-  <form class="card" method="post" action="{{ url_for('upload_cover', slug=event.slug) }}" enctype="multipart/form-data">
-    <label>Upload a new cover<input type="file" name="cover" accept="image/png,image/jpeg,image/webp" required></label>
-    <button type="submit" class="btn-secondary">Upload</button>
+  <form id="cover-form" class="card" method="post"
+        action="{{ url_for('upload_cover', slug=event.slug) }}" enctype="multipart/form-data">
+    {% if cover_url %}
+      <p class="muted" style="margin-bottom:0.75rem;"><span style="color:var(--sage);font-weight:800;">✓</span> Cover image set</p>
+      <img class="cover" src="{{ cover_url }}" alt="Current cover" style="max-height:240px;margin-bottom:1rem;">
+    {% endif %}
+    <label class="field-label" for="cover-input">{{ 'Replace cover' if cover_url else 'Add a cover' }}</label>
+    <input id="cover-input" type="file" name="cover" accept="image/png,image/jpeg,image/webp" required>
+    <div class="btn-row" style="align-items:center;">
+      <button id="cover-upload-btn" type="submit" class="btn-secondary">Upload</button>
+      <span id="cover-status" class="muted"></span>
+    </div>
   </form>
+  <script>
+    (function () {
+      var input = document.getElementById('cover-input');
+      var btn = document.getElementById('cover-upload-btn');
+      if (!input) return;
+      if (btn) btn.style.display = 'none';        // JS on: upload happens on select
+      input.addEventListener('change', function () {
+        if (input.files && input.files.length) {
+          document.getElementById('cover-status').textContent = 'Uploading…';
+          input.form.submit();
+        }
+      });
+    })();
+  </script>
 
   <hr>
   <h2>Danger Zone</h2>

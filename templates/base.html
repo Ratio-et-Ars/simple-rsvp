@@ -3,22 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>document.documentElement.className = 'js';</script>
   <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <title>{% block title %}RSVP{% endblock %}</title>
 </head>
 <body>
   <header class="site-header">
-    <div class="container">
+    <div class="container{% block headwide %}{% endblock %}">
       <a class="brand" href="{{ url_for('home') }}">RSVP</a>
       {% block nav %}{% endblock %}
     </div>
   </header>
-  <main class="container">
+  <main class="container{% block mainwide %}{% endblock %}">
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer">
-    <div class="container">Pax et bonum.</div>
+    <div class="container"><p>Pax et bonum.</p></div>
   </footer>
+  {% block scripts %}{% endblock %}
 </body>
 </html>
