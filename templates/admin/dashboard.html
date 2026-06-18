@@ -31,10 +31,12 @@
 {% endmacro %}
 
 {% block content %}
-  {% set ns = namespace(adults=0, kids=0) %}
-  {% for e in events %}{% set ns.adults = ns.adults + (e.total_adults or 0) %}{% set ns.kids = ns.kids + (e.total_kids or 0) %}{% endfor %}
   {% set active_events = events | selectattr('active') | list %}
   {% set inactive_events = events | rejectattr('active') | list %}
+  {# Top summary reflects only active events — inactive ones are folded away,
+     so their guests shouldn't inflate the visible total. #}
+  {% set ns = namespace(adults=0, kids=0) %}
+  {% for e in active_events %}{% set ns.adults = ns.adults + (e.total_adults or 0) %}{% set ns.kids = ns.kids + (e.total_kids or 0) %}{% endfor %}
   <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
     <h1>Events</h1>
     <div class="btn-row">
@@ -44,13 +46,12 @@
   </div>
 
   {% if events %}
-    <p class="muted" style="margin-top:-0.25rem">
-      {{ events|length }} event{{ '' if events|length == 1 else 's' }} ·
-      <strong style="color:var(--ink)">{{ ns.adults + ns.kids }} guests</strong> total
-      ({{ ns.adults }} adults, {{ ns.kids }} kids)
-    </p>
-
     {% if active_events %}
+      <p class="muted" style="margin-top:-0.25rem">
+        {{ active_events|length }} active event{{ '' if active_events|length == 1 else 's' }} ·
+        <strong style="color:var(--ink)">{{ ns.adults + ns.kids }} guests</strong> total
+        ({{ ns.adults }} adults, {{ ns.kids }} kids)
+      </p>
       {{ event_table(active_events) }}
     {% else %}
       <p class="muted">No active events right now.</p>

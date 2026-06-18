@@ -349,6 +349,27 @@ def test_dashboard_with_only_inactive_events(client):
     assert b"Dormant Fair" in page
 
 
+def test_dashboard_top_total_counts_only_active_guests(client):
+    # Active event with 3 guests.
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Active Bash", "datetime": "2099-06-01T12:00", "active": "on", "listed": "on"})
+    client.post("/active-bash/rsvp", data={"name": "A", "adults": "2", "kids": "1"})
+    # Another event collects 18 guests while active, then gets closed (inactive).
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Now Closed", "datetime": "2099-07-01T12:00", "active": "on", "listed": "on"})
+    client.post("/now-closed/rsvp", data={"name": "B", "adults": "9", "kids": "9"})
+    client.post("/admin/now-closed/edit", headers={**auth(), "Origin": "http://localhost"},
+                data={"title": "Now Closed", "datetime": "2099-07-01T12:00", "listed": "on"})  # active off
+
+    page = client.get("/admin", headers=auth()).data
+    # Top summary reflects only the active event's 3 guests, not the closed 18.
+    assert b"1 active event" in page
+    assert b"3 guests" in page
+    assert b"21 guests" not in page      # 3 + 18 must NOT be summed
+    assert b"18 guests" not in page
+    assert b"1 inactive event" in page   # the closed event is folded away
+
+
 # --- Settings page + notification toggles ------------------------------------
 
 def test_settings_kv_roundtrip_and_stats(client):
