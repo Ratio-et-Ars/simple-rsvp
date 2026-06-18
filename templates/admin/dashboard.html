@@ -1,8 +1,40 @@
 {% extends "base.html" %}
 {% block title %}Admin · Events{% endblock %}
+
+{% macro event_row(e) %}
+  <tr>
+    <td>
+      <a href="{{ url_for('admin_event', slug=e.slug) }}"><strong>{{ e.title }}</strong></a><br>
+      <span class="muted" style="font-size:0.85rem">/{{ e.slug }}</span>
+    </td>
+    <td class="muted">{{ e.datetime[:10] }}</td>
+    <td>
+      <strong>{{ (e.total_adults or 0) + (e.total_kids or 0) }}</strong>
+      <span class="muted" style="font-size:0.82rem">({{ e.total_adults or 0 }} adults, {{ e.total_kids or 0 }} kids)</span>
+    </td>
+    <td>
+      <span class="badge {{ 'badge-on' if e.active else 'badge-off' }}">{{ 'Active' if e.active else 'Closed' }}</span>
+      {% if e.listed %}<span class="badge badge-on">Listed</span>{% else %}<span class="badge">Unlisted</span>{% endif %}
+    </td>
+  </tr>
+{% endmacro %}
+
+{% macro event_table(rows) %}
+  <table>
+    <thead>
+      <tr><th>Event</th><th>When</th><th>Guests</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for e in rows %}{{ event_row(e) }}{% endfor %}
+    </tbody>
+  </table>
+{% endmacro %}
+
 {% block content %}
   {% set ns = namespace(adults=0, kids=0) %}
   {% for e in events %}{% set ns.adults = ns.adults + (e.total_adults or 0) %}{% set ns.kids = ns.kids + (e.total_kids or 0) %}{% endfor %}
+  {% set active_events = events | selectattr('active') | list %}
+  {% set inactive_events = events | rejectattr('active') | list %}
   <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
     <h1>Events</h1>
     <a class="btn" href="{{ url_for('admin_new') }}">+ New Event</a>
@@ -14,38 +46,19 @@
       <strong style="color:var(--ink)">{{ ns.adults + ns.kids }} guests</strong> total
       ({{ ns.adults }} adults, {{ ns.kids }} kids)
     </p>
-    <table>
-      <thead>
-        <tr><th>Event</th><th>When</th><th>Guests</th><th>Status</th></tr>
-      </thead>
-      <tbody>
-        {% for e in events %}
-          <tr>
-            <td>
-              <a href="{{ url_for('admin_event', slug=e.slug) }}"><strong>{{ e.title }}</strong></a><br>
-              <span class="muted" style="font-size:0.85rem">/{{ e.slug }}</span>
-            </td>
-            <td class="muted">{{ e.datetime[:10] }}</td>
-            <td>
-              <strong>{{ (e.total_adults or 0) + (e.total_kids or 0) }}</strong>
-              <span class="muted" style="font-size:0.82rem">({{ e.total_adults or 0 }} adults, {{ e.total_kids or 0 }} kids)</span>
-            </td>
-            <td>
-              <span class="badge {{ 'badge-on' if e.active else 'badge-off' }}">{{ 'Active' if e.active else 'Closed' }}</span>
-              {% if e.listed %}<span class="badge badge-on">Listed</span>{% else %}<span class="badge">Unlisted</span>{% endif %}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-      <tfoot>
-        <tr>
-          <th>All events</th>
-          <th></th>
-          <th>{{ ns.adults + ns.kids }} guests</th>
-          <th></th>
-        </tr>
-      </tfoot>
-    </table>
+
+    {% if active_events %}
+      {{ event_table(active_events) }}
+    {% else %}
+      <p class="muted">No active events right now.</p>
+    {% endif %}
+
+    {% if inactive_events %}
+      <details class="inactive-fold">
+        <summary>{{ inactive_events|length }} inactive event{{ '' if inactive_events|length == 1 else 's' }}</summary>
+        {{ event_table(inactive_events) }}
+      </details>
+    {% endif %}
   {% else %}
     <div class="card center stack">
       <p class="muted">No events yet.</p>

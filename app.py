@@ -24,6 +24,7 @@ from werkzeug.exceptions import HTTPException
 from PIL import Image, ImageOps
 
 import db
+import notify
 
 # Cap decoded image size to defend against decompression-bomb uploads.
 Image.MAX_IMAGE_PIXELS = 30_000_000
@@ -272,17 +273,26 @@ def submit_rsvp(slug):
     # that row instead of creating a duplicate. The token is an unguessable
     # capability — only the submitter's browser can edit their own RSVP.
     existing = db.get_rsvp_by_token(request.cookies.get("rsvp_" + slug))
-    if existing and existing["event_id"] == event["id"]:
+    updated = bool(existing and existing["event_id"] == event["id"])
+    if updated:
         token = existing["token"]
         db.update_rsvp(existing["id"], name[:200], adults, kids, notes)
     else:
         token = secrets.token_urlsafe(16)
         db.add_rsvp(event["id"], name[:200], adults, kids, notes, token)
 
+    # Best-effort ping to any configured channel (Discord/email). Compute the
+    # fresh total here, in the request, and hand notify() plain values — the
+    # network work happens off-thread and never blocks this response.
+    notify.notify_rsvp(
+        title=event["title"], name=name[:200], adults=adults, kids=kids,
+        notes=notes, total=db.guest_counts(event["id"])["total"], updated=updated,
+    )
+
     resp = make_response(render_template(
         "confirmation.html",
         event=event, date_str=view["date_str"], time_str=view["time_str"],
-        gcal_url=view["gcal_url"], updated=bool(existing and existing["event_id"] == event["id"]),
+        gcal_url=view["gcal_url"], updated=updated,
     ))
     resp.set_cookie("rsvp_" + slug, token, max_age=60 * 60 * 24 * 400,
                     samesite="Lax", httponly=True)

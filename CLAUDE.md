@@ -30,6 +30,9 @@ There is no linter. Verify behavior with `pytest` and by running the app.
 - `PORT` (default `3022`).
 - `DATA_DIR` (default `data`) — holds `rsvp.db` and `uploads/`; this is the Docker volume.
 - `FLASK_DEBUG` — `1` enables debug mode (dev only; off by default, unlike the old app).
+- **RSVP notifications** (all optional; unset = that channel off): `DISCORD_WEBHOOK_URL`
+  pings a Discord channel webhook. Email needs `SMTP_HOST` + `NOTIFY_EMAIL` (plus optional
+  `SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM`/`SMTP_STARTTLS`). See `notify.py`.
 
 ## Architecture
 
@@ -46,6 +49,10 @@ Three layers, all server-rendered:
   `{{ }}`, never build HTML by string concatenation.
 - **`static/style.css`** — the entire theme, self-hosted (no CDN). Light/dark via
   `prefers-color-scheme`, CSS custom properties for tokens. There is no build step.
+- **`notify.py`** — best-effort RSVP notifications (Discord webhook + SMTP email),
+  stdlib only. `submit_rsvp` calls `notify_rsvp(...)`, which fires on a daemon thread
+  and swallows all errors, so a slow/broken endpoint never blocks or breaks an RSVP.
+  Channels are off unless their env var is set.
 
 **Storage of state** (all under `DATA_DIR`, persisted by the Docker volume):
 - `rsvp.db` — events and RSVPs.

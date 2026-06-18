@@ -43,10 +43,10 @@
     <label>Title<input name="title" value="{{ event.title }}" required></label>
     <label>Date &amp; Time<input type="datetime-local" name="datetime" value="{{ event.datetime[:16] }}" required></label>
     <label>Location <span class="muted" style="font-weight:400">— display name</span>
-      <input name="location" value="{{ event.location }}" placeholder="The Fuhry Residence">
+      <input name="location" value="{{ event.location }}" placeholder="The Garden House">
     </label>
     <label>Map address <span class="muted" style="font-weight:400">— optional; used by the Google Maps link</span>
-      <input name="address" value="{{ event.address }}" placeholder="123 Main St, Vienna, OH">
+      <input name="address" value="{{ event.address }}" placeholder="123 Main St, Anytown">
     </label>
     <label>Description<textarea name="description">{{ event.description }}</textarea></label>
     <label class="check"><input type="checkbox" name="active" {{ 'checked' if event.active }}> Accepting RSVPs</label>

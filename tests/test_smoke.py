@@ -202,3 +202,148 @@ def test_security_headers_present(client):
     assert "default-src 'self'" in r.headers.get("Content-Security-Policy", "")
     assert r.headers.get("X-Content-Type-Options") == "nosniff"
     assert r.headers.get("Referrer-Policy") == "same-origin"
+
+
+# --- Admin dashboard: inactive events collapse -------------------------------
+
+def test_inactive_events_collapsed_on_dashboard(client):
+    # One active, one inactive (Closed) event.
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Open House", "datetime": "2099-01-01T12:00", "active": "on", "listed": "on",
+    })
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Closed Bash", "datetime": "2099-02-01T12:00", "listed": "on",
+    })  # active unchecked -> inactive
+    page = client.get("/admin", headers=auth()).data
+    assert b"Open House" in page
+    assert b"Closed Bash" in page
+    # The inactive one is tucked inside a <details> fold labelled with a count.
+    assert b"1 inactive event" in page
+    assert b'<details class="inactive-fold">' in page
+    fold = page.split(b'<details class="inactive-fold">', 1)[1]
+    assert b"Closed Bash" in fold        # inactive event lives inside the fold
+    assert b"Open House" not in fold     # active event stays out of the fold
+
+
+# --- RSVP notifications ------------------------------------------------------
+
+def test_notify_compose_and_plural():
+    import notify
+    assert notify._plural(1, "adult") == "1 adult"
+    assert notify._plural(0, "adult") == "0 adults"
+    assert notify._plural(2, "kid") == "2 kids"
+    body = notify._compose("Summer BBQ", "Alex", 2, 1, "Can't wait!", 14, updated=False)
+    assert "Alex RSVP'd to Summer BBQ." in body
+    assert "2 adults, 1 kid." in body
+    assert "Note: Can't wait!" in body
+    assert "14 guests total now." in body
+    # Updated wording, and notes line omitted when empty.
+    upd = notify._compose("Summer BBQ", "Alex", 1, 0, "", 5, updated=True)
+    assert "updated their RSVP for Summer BBQ." in upd
+    assert "Note:" not in upd
+
+
+def test_notify_disabled_when_no_channel_configured(monkeypatch):
+    import notify
+    for var in ("DISCORD_WEBHOOK_URL", "SMTP_HOST"):
+        monkeypatch.delenv(var, raising=False)
+    called = []
+    monkeypatch.setattr(notify.threading, "Thread",
+                        lambda *a, **k: called.append(1) or (_ for _ in ()).throw(AssertionError))
+    # No channel set -> returns immediately, never spawns a thread.
+    notify.notify_rsvp(title="X", name="Y", adults=1, kids=0, notes="", total=1, updated=False)
+    assert not called
+
+
+def test_notify_discord_posts_payload(monkeypatch):
+    import json
+    import notify
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.example/webhook")
+    captured = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["body"] = json.loads(req.data.decode())
+        class _Resp:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        return _Resp()
+
+    monkeypatch.setattr(notify.urllib.request, "urlopen", fake_urlopen)
+    notify._send_discord("Alex RSVP'd to Summer BBQ.")
+    assert captured["url"] == "https://discord.example/webhook"
+    assert "Alex RSVP'd to Summer BBQ." in captured["body"]["content"]
+
+
+def test_notify_email_builds_and_sends(monkeypatch):
+    import notify
+    monkeypatch.setenv("SMTP_HOST", "mail.example")
+    monkeypatch.setenv("NOTIFY_EMAIL", "host@example.com")
+    monkeypatch.setenv("SMTP_FROM", "rsvp@example.com")
+    monkeypatch.delenv("SMTP_USER", raising=False)
+    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
+    sent = {}
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout=None):
+            sent["host"], sent["port"] = host, port
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def starttls(self): sent["starttls"] = True
+        def login(self, user, pw): sent["login"] = (user, pw)
+        def send_message(self, msg):
+            sent["to"], sent["from"] = msg["To"], msg["From"]
+            sent["subject"], sent["body"] = msg["Subject"], msg.get_content()
+
+    monkeypatch.setattr(notify.smtplib, "SMTP", FakeSMTP)
+    notify._send_email("New RSVP: Alex → Summer BBQ", "Alex RSVP'd to Summer BBQ.")
+    assert sent["host"] == "mail.example" and sent["port"] == 587
+    assert sent["to"] == "host@example.com" and sent["from"] == "rsvp@example.com"
+    assert sent["subject"] == "New RSVP: Alex → Summer BBQ"
+    assert "Alex RSVP'd to Summer BBQ." in sent["body"]
+    assert sent.get("starttls") is True   # STARTTLS on by default
+    assert "login" not in sent            # no auth attempted without user/pass
+
+
+def test_rsvp_submission_invokes_notify(client, monkeypatch):
+    # Verify the app -> notify wiring: the right values, the fresh total, and
+    # the updated flag all flow through when a guest RSVPs.
+    import app as app_module
+    calls = []
+    monkeypatch.setattr(app_module.notify, "notify_rsvp",
+                        lambda **kw: calls.append(kw))
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Notify Test", "datetime": "2099-05-01T12:00", "active": "on", "listed": "on",
+    })
+
+    # First RSVP -> a brand-new row (updated=False) with the correct total.
+    client.post("/notify-test/rsvp", data={
+        "name": "Alex", "adults": "2", "kids": "1", "notes": "yay",
+    })
+    assert len(calls) == 1
+    first = calls[0]
+    assert first["title"] == "Notify Test"
+    assert first["name"] == "Alex"
+    assert (first["adults"], first["kids"]) == (2, 1)
+    assert first["total"] == 3
+    assert first["updated"] is False
+
+    # Same browser submits again -> updates the row (updated=True), total stays 3.
+    client.post("/notify-test/rsvp", data={
+        "name": "Alex", "adults": "1", "kids": "2", "notes": "changed",
+    })
+    assert len(calls) == 2
+    assert calls[1]["updated"] is True
+    assert calls[1]["total"] == 3
+
+
+def test_dashboard_with_only_inactive_events(client):
+    # When every event is inactive, the active table is replaced by a note and
+    # all events live in the fold.
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Dormant Fair", "datetime": "2099-03-01T12:00", "listed": "on",
+    })  # active unchecked
+    page = client.get("/admin", headers=auth()).data
+    assert b"No active events right now." in page
+    assert b"1 inactive event" in page
+    assert b"Dormant Fair" in page

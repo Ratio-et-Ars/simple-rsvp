@@ -342,6 +342,22 @@ th { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .badge-on { background: rgba(94,126,107,0.22); color: var(--sage); }
 .badge-off { background: rgba(184,73,47,0.18); color: var(--barn-red); }
 
+/* ---- Collapsible "inactive events" fold (admin) ---- */
+details.inactive-fold { margin-top: 1.75rem; }
+details.inactive-fold > summary {
+  cursor: pointer; list-style: none;
+  font-family: var(--head); font-weight: 700; font-size: 0.95rem;
+  color: var(--ink-soft); padding: 0.4rem 0;
+  display: inline-flex; align-items: center; gap: 0.45rem;
+}
+details.inactive-fold > summary::-webkit-details-marker { display: none; }
+details.inactive-fold > summary::before {
+  content: "▸"; display: inline-block; transition: transform 0.15s ease;
+}
+details.inactive-fold[open] > summary::before { transform: rotate(90deg); }
+details.inactive-fold > summary:hover { color: var(--ink); }
+details.inactive-fold table { margin-top: 0.5rem; }
+
 @media (max-width: 560px) {
   main.container { padding-top: 1.5rem; }
   .invitation .body { padding: 1.5rem 1.1rem; }
