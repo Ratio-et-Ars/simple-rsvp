@@ -61,6 +61,29 @@ python app.py            # http://localhost:3022
 | `DATA_DIR`       | `data`    | Where `rsvp.db` and uploaded covers live (the Docker volume). |
 | `FLASK_DEBUG`    | _off_     | Set to `1` to enable Flask debug mode (local dev only). |
 
+### 🔔 RSVP notifications (optional)
+
+Get a ping when someone RSVPs. Endpoints and credentials are configured with the
+env vars below — **secrets stay in the environment, never in the database.** The
+admin **Settings** page (`/admin/settings`) shows which channels are configured,
+lets you switch each one on/off, and has a *Send test* button. A channel fires
+only when it's both configured *and* enabled. Delivery is best-effort — a broken
+endpoint never affects the guest. Stdlib only.
+
+| Env var               | Purpose                                                        |
+| --------------------- | -------------------------------------------------------------- |
+| `DISCORD_WEBHOOK_URL` | Discord channel webhook URL — posts a message on each RSVP.    |
+| `SMTP_HOST`           | Mail server host. Enables email (with `NOTIFY_EMAIL`).         |
+| `NOTIFY_EMAIL`        | Recipient address for email notifications.                     |
+| `SMTP_PORT`           | Mail server port (default `587`).                              |
+| `SMTP_USER` / `SMTP_PASSWORD` | SMTP login, if your server requires auth.              |
+| `SMTP_FROM`           | From address (defaults to `SMTP_USER`).                        |
+| `SMTP_STARTTLS`       | STARTTLS on by default; set to `0` to disable.                 |
+
+To get a Discord webhook: **Server Settings → Integrations → Webhooks → New Webhook**,
+pick a channel, **Copy Webhook URL**. (Prefer phone push? ntfy.sh is a ~10-line add in
+`notify.py`.)
+
 ---
 
 ## 📝 Creating an event

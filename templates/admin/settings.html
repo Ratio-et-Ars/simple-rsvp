@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Admin · Settings{% endblock %}
+{% block content %}
+  <p><a href="{{ url_for('admin') }}">← Back to events</a></p>
+  <h1>Settings</h1>
+
+  {% if tested %}
+    {% if test_error %}
+      <div class="card" style="border-color:var(--barn-red);margin-bottom:1.5rem">
+        <strong>Test to {{ tested }} failed:</strong> {{ test_error }}
+      </div>
+    {% else %}
+      <div class="card" style="border-color:var(--leaf);margin-bottom:1.5rem">
+        <strong>Test sent to {{ tested }}.</strong> Check the channel to confirm it arrived.
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <h2>Notifications</h2>
+  <p class="muted">Get pinged when someone RSVPs. Endpoints and credentials are
+    set with <strong>environment variables</strong>, so secrets never touch the
+    database — here you only switch a configured channel on or off.</p>
+
+  <form class="card" method="post" action="{{ url_for('admin_settings') }}">
+    <table style="margin-top:0">
+      <thead><tr><th>Channel</th><th>Status</th><th>Enabled</th></tr></thead>
+      <tbody>
+        {% for c in channels %}
+          <tr>
+            <td>
+              <strong>{{ c.label }}</strong>
+              {% if c.detail %}<br><span class="muted" style="font-size:0.85rem">{{ c.detail }}</span>{% endif %}
+            </td>
+            <td>
+              {% if c.configured %}
+                <span class="badge badge-on">Configured</span>
+              {% else %}
+                <span class="badge badge-off">Not set</span>
+              {% endif %}
+            </td>
+            <td>
+              <label class="check">
+                <input type="checkbox" name="enable_{{ c.key }}"
+                       {{ 'checked' if c.enabled }}{{ ' disabled' if not c.configured }}>
+                <span class="muted" style="font-size:0.85rem">
+                  {% if not c.configured %}set its env var first{% else %}{{ 'On' if c.enabled else 'Off' }}{% endif %}
+                </span>
+              </label>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="btn-row">
+      <button type="submit">Save</button>
+      {% for c in channels %}
+        {% if c.configured %}
+          <button class="btn-secondary" type="submit"
+                  formaction="{{ url_for('admin_test_notification') }}"
+                  name="channel" value="{{ c.key }}">Send test to {{ c.label }}</button>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </form>
+
+  <hr>
+  <h2>System</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:9rem">Version</th><td>{{ version }}</td></tr>
+      <tr><th>Events</th><td>{{ stats.events }}</td></tr>
+      <tr><th>RSVPs</th><td>{{ stats.rsvps }} <span class="muted">({{ stats.guests }} guests)</span></td></tr>
+      <tr><th>Python</th><td>{{ runtime.python }}</td></tr>
+      <tr><th>Flask</th><td>{{ runtime.flask }}</td></tr>
+      <tr><th>Data dir</th><td>{{ runtime.data_dir }}</td></tr>
+      <tr><th>Database</th><td>{{ runtime.db_size }}</td></tr>
+    </tbody>
+  </table>
+{% endblock %}
