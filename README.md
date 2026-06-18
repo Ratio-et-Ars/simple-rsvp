@@ -63,8 +63,12 @@ python app.py            # http://localhost:3022
 
 ### 🔔 RSVP notifications (optional)
 
-Get a ping when someone RSVPs. Each channel is off unless its env var is set, and
-delivery is best-effort — a broken endpoint never affects the guest. Stdlib only.
+Get a ping when someone RSVPs. Endpoints and credentials are configured with the
+env vars below — **secrets stay in the environment, never in the database.** The
+admin **Settings** page (`/admin/settings`) shows which channels are configured,
+lets you switch each one on/off, and has a *Send test* button. A channel fires
+only when it's both configured *and* enabled. Delivery is best-effort — a broken
+endpoint never affects the guest. Stdlib only.
 
 | Env var               | Purpose                                                        |
 | --------------------- | -------------------------------------------------------------- |

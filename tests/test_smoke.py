@@ -347,3 +347,95 @@ def test_dashboard_with_only_inactive_events(client):
     assert b"No active events right now." in page
     assert b"1 inactive event" in page
     assert b"Dormant Fair" in page
+
+
+# --- Settings page + notification toggles ------------------------------------
+
+def test_settings_kv_roundtrip_and_stats(client):
+    # The settings key/value store and the stats aggregate work end to end.
+    import app as app_module
+    with app_module.app.app_context():
+        import db
+        assert db.get_setting("nope", "fallback") == "fallback"
+        db.set_setting("foo", "bar")
+        assert db.get_setting("foo") == "bar"
+        db.set_setting("foo", "baz")          # upsert overwrites
+        assert db.get_setting("foo") == "baz"
+        assert db.stats() == {"events": 0, "rsvps": 0, "guests": 0}
+
+
+def test_channel_status_masks_secret(monkeypatch):
+    import notify
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.com/api/webhooks/secret123456789")
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    assert notify.channel_configured("discord") is True
+    assert notify.channel_configured("email") is False
+    detail = notify.channel_detail("discord")
+    assert detail.startswith("••••")
+    assert "secret" not in detail           # the real URL never leaks
+    assert "456789" in detail               # but a recognizable tail shows
+
+
+def test_notify_respects_enabled_toggle(monkeypatch):
+    import notify
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.example/webhook")
+    spawned = []
+    monkeypatch.setattr(notify.threading, "Thread",
+                        lambda *a, **k: spawned.append(k.get("args")) or _Noop())
+
+    common = dict(title="T", name="N", adults=1, kids=0, notes="", total=1, updated=False)
+    # Configured + enabled -> a thread is spawned with discord active.
+    notify.notify_rsvp(enabled={"discord": True}, **common)
+    assert spawned and "discord" in spawned[-1][2]
+    # Configured but toggled off -> nothing fires.
+    spawned.clear()
+    notify.notify_rsvp(enabled={"discord": False}, **common)
+    assert not spawned
+
+
+class _Noop:
+    def start(self): pass
+
+
+def test_send_test_reports_success_and_failure(monkeypatch):
+    import notify
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.example/webhook")
+
+    monkeypatch.setattr(notify, "_send_discord", lambda body: None)
+    assert notify.send_test("discord") is None        # success -> None
+
+    def boom(body):
+        raise RuntimeError("connection refused")
+    monkeypatch.setattr(notify, "_send_discord", boom)
+    assert notify.send_test("discord") == "connection refused"
+
+    monkeypatch.delenv("DISCORD_WEBHOOK_URL", raising=False)
+    assert notify.send_test("discord") == "Not configured."  # unconfigured
+
+
+def test_settings_page_renders_and_toggle_persists(client, monkeypatch):
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.example/webhook")
+    page = client.get("/admin/settings", headers=auth()).data
+    assert b"Settings" in page
+    assert b"Discord" in page
+    assert b"Configured" in page            # discord shows as configured
+    assert b"Version" in page               # System section present
+
+    # Turn Discord off (omit its checkbox), and confirm the toggle is persisted.
+    import app as app_module
+    r = client.post("/admin/settings", headers={**auth(), "Origin": "http://localhost"}, data={})
+    assert r.status_code in (302, 303)
+    with app_module.app.app_context():
+        import db
+        assert db.get_setting("notify_discord_enabled") == "0"
+
+
+def test_settings_requires_auth(client):
+    assert client.get("/admin/settings").status_code == 401
+
+
+def test_test_notification_rejects_unknown_channel(client):
+    r = client.post("/admin/settings/test",
+                    headers={**auth(), "Origin": "http://localhost"},
+                    data={"channel": "carrier-pigeon"})
+    assert r.status_code == 400

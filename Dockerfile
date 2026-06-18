@@ -1,9 +1,13 @@
 FROM python:3.12-slim
 
+# Stamped by the release workflow from the image tag; shows on the Settings page.
+ARG APP_VERSION=dev
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PORT=3022 \
-    DATA_DIR=/app/data
+    DATA_DIR=/app/data \
+    APP_VERSION=${APP_VERSION}
 
 WORKDIR /app
 

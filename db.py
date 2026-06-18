@@ -43,6 +43,11 @@ CREATE TABLE IF NOT EXISTS rsvps (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rsvps_event ON rsvps(event_id);
+
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -202,3 +207,32 @@ def delete_rsvp(rsvp_id):
     db = get_db()
     db.execute("DELETE FROM rsvps WHERE id = ?", (rsvp_id,))
     db.commit()
+
+
+# --- Settings (key/value) ---------------------------------------------------
+
+def get_setting(key, default=None):
+    row = get_db().execute(
+        "SELECT value FROM settings WHERE key = ?", (key,)
+    ).fetchone()
+    return row["value"] if row else default
+
+
+def set_setting(key, value):
+    db = get_db()
+    db.execute(
+        """INSERT INTO settings (key, value) VALUES (?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+        (key, str(value)),
+    )
+    db.commit()
+
+
+def stats():
+    """At-a-glance totals across the whole instance, for the admin dashboard."""
+    row = get_db().execute(
+        """SELECT (SELECT COUNT(*) FROM events) AS events,
+                  (SELECT COUNT(*) FROM rsvps)  AS rsvps,
+                  (SELECT COALESCE(SUM(adults + kids), 0) FROM rsvps) AS guests"""
+    ).fetchone()
+    return {"events": row["events"], "rsvps": row["rsvps"], "guests": row["guests"]}

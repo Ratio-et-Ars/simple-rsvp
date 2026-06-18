@@ -37,7 +37,10 @@
   {% set inactive_events = events | rejectattr('active') | list %}
   <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
     <h1>Events</h1>
-    <a class="btn" href="{{ url_for('admin_new') }}">+ New Event</a>
+    <div class="btn-row">
+      <a class="btn btn-secondary" href="{{ url_for('admin_settings') }}">⚙ Settings</a>
+      <a class="btn" href="{{ url_for('admin_new') }}">+ New Event</a>
+    </div>
   </div>
 
   {% if events %}

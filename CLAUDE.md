@@ -30,9 +30,14 @@ There is no linter. Verify behavior with `pytest` and by running the app.
 - `PORT` (default `3022`).
 - `DATA_DIR` (default `data`) — holds `rsvp.db` and `uploads/`; this is the Docker volume.
 - `FLASK_DEBUG` — `1` enables debug mode (dev only; off by default, unlike the old app).
-- **RSVP notifications** (all optional; unset = that channel off): `DISCORD_WEBHOOK_URL`
+- **RSVP notifications** (all optional; unset = that channel unconfigured): `DISCORD_WEBHOOK_URL`
   pings a Discord channel webhook. Email needs `SMTP_HOST` + `NOTIFY_EMAIL` (plus optional
   `SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM`/`SMTP_STARTTLS`). See `notify.py`.
+  **Secrets stay in env vars, never the DB**; the only thing stored (in the `settings`
+  table) is a per-channel on/off toggle. A channel fires only if it's *configured* (env)
+  AND *enabled* (toggle). Both are edited on the admin Settings page (`/admin/settings`).
+- `APP_VERSION` (default `dev`) — shown on the Settings page; stamped at Docker build
+  time from the release tag (see `Dockerfile` `ARG` + `release.yml` `build-args`).
 
 ## Architecture
 
@@ -40,8 +45,9 @@ Three layers, all server-rendered:
 
 - **`db.py`** — SQLite data layer. Schema + all queries live here. Connections are
   per-request via Flask's `g` (`get_db`/`close_db`), so it's safe under the threaded
-  WSGI server. Two tables: `events` and `rsvps` (FK `ON DELETE CASCADE`). Counts are
-  computed with SQL aggregates, not in Python.
+  WSGI server. Three tables: `events`, `rsvps` (FK `ON DELETE CASCADE`), and `settings`
+  (key/value, used for the notification toggles). Counts are computed with SQL
+  aggregates, not in Python.
 - **`app.py`** — Flask routes + request helpers (`slugify`, `unique_slug`, `safe_int`,
   `format_datetime`, `event_view`, `basic_auth_required`). No HTML lives here anymore.
 - **`templates/`** — Jinja2 templates extending `base.html`. Jinja autoescaping is what
@@ -62,9 +68,9 @@ Three layers, all server-rendered:
 **Route groups:**
 - Public: `/` (landing), `/<slug>` (event page + RSVP form), `/<slug>/rsvp` (POST),
   `/cover/<slug>`.
-- Admin (`@basic_auth_required`): `/admin`, `/admin/new`, `/admin/<slug>` (manage),
-  `/admin/<slug>/edit`, `/admin/<slug>/delete`, `/admin/<slug>/rsvp/<id>` (edit/delete),
-  `/admin/<slug>/upload`, `/admin/<slug>/export.csv`.
+- Admin (`@basic_auth_required`): `/admin`, `/admin/settings` (+ `/admin/settings/test`),
+  `/admin/new`, `/admin/<slug>` (manage), `/admin/<slug>/edit`, `/admin/<slug>/delete`,
+  `/admin/<slug>/rsvp/<id>` (edit/delete), `/admin/<slug>/upload`, `/admin/<slug>/export.csv`.
 
 ## Conventions / gotchas
 

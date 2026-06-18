@@ -36,6 +36,9 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
 if not ADMIN_PASSWORD:
     raise SystemExit("Set the ADMIN_PASSWORD environment variable before starting.")
 
+# Stamped in at Docker build time from the release tag; "dev" for local runs.
+APP_VERSION = os.environ.get("APP_VERSION", "dev")
+
 ALLOWED_EXTENSIONS = ("png", "jpg", "jpeg", "webp")
 # Map Pillow's decoded format to the extension we save under. Trusting the
 # decoded format (not the uploaded filename) means a renamed file can't smuggle
@@ -281,12 +284,14 @@ def submit_rsvp(slug):
         token = secrets.token_urlsafe(16)
         db.add_rsvp(event["id"], name[:200], adults, kids, notes, token)
 
-    # Best-effort ping to any configured channel (Discord/email). Compute the
-    # fresh total here, in the request, and hand notify() plain values — the
-    # network work happens off-thread and never blocks this response.
+    # Best-effort ping to any configured + enabled channel (Discord/email).
+    # Compute the fresh total and the per-channel toggles here, in the request
+    # (where the DB is available), and hand notify() plain values — the network
+    # work happens off-thread and never blocks this response.
     notify.notify_rsvp(
         title=event["title"], name=name[:200], adults=adults, kids=kids,
         notes=notes, total=db.guest_counts(event["id"])["total"], updated=updated,
+        enabled=_notify_toggles(),
     )
 
     resp = make_response(render_template(
@@ -315,11 +320,90 @@ def cancel_rsvp(slug):
 
 # --- Admin routes -----------------------------------------------------------
 
+def _notify_toggles():
+    """Per-channel on/off flags from the settings table (default: on)."""
+    return {c: db.get_setting(f"notify_{c}_enabled", "1") != "0"
+            for c in notify.CHANNELS}
+
+
+def _human_size(n):
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{n} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} TB"
+
+
+def _settings_context():
+    """Everything the Settings page renders: channel status, stats, runtime."""
+    from importlib.metadata import PackageNotFoundError, version as pkg_version
+    import platform
+
+    def pkg(name):
+        try:
+            return pkg_version(name)
+        except PackageNotFoundError:
+            return "?"
+
+    toggles = _notify_toggles()
+    channels = [{
+        "key": c,
+        "label": notify.CHANNEL_LABELS[c],
+        "configured": notify.channel_configured(c),
+        "detail": notify.channel_detail(c),
+        "enabled": toggles[c],
+    } for c in notify.CHANNELS]
+    try:
+        db_size = _human_size(os.path.getsize(db.DB_PATH))
+    except OSError:
+        db_size = "—"
+    return {
+        "version": APP_VERSION,
+        "channels": channels,
+        "stats": db.stats(),
+        "runtime": {
+            "python": platform.python_version(),
+            "flask": pkg("flask"),
+            "data_dir": os.path.abspath(db.DATA_DIR),
+            "db_size": db_size,
+        },
+        "tested": request.args.get("tested"),
+        "test_error": request.args.get("error"),
+    }
+
+
 @app.route("/admin")
 @basic_auth_required
 def admin():
     events = db.list_events()
     return render_template("admin/dashboard.html", events=events)
+
+
+@app.route("/admin/settings", methods=["GET", "POST"])
+@basic_auth_required
+def admin_settings():
+    if request.method == "POST":
+        check_csrf()
+        for c in notify.CHANNELS:
+            db.set_setting(
+                f"notify_{c}_enabled",
+                "1" if request.form.get(f"enable_{c}") == "on" else "0",
+            )
+        return redirect(url_for("admin_settings"))
+    return render_template("admin/settings.html", **_settings_context())
+
+
+@app.route("/admin/settings/test", methods=["POST"])
+@basic_auth_required
+def admin_test_notification():
+    check_csrf()
+    channel = request.form.get("channel", "")
+    if channel not in notify.CHANNELS:
+        abort(400)
+    # Test the configuration regardless of the on/off toggle, and surface the
+    # result back on the Settings page via query params (no session/flash needed).
+    error = notify.send_test(channel)
+    return redirect(url_for("admin_settings", tested=channel, error=error or ""))
 
 
 @app.route("/admin/new", methods=["GET", "POST"])
