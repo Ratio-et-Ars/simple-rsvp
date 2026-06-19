@@ -460,3 +460,31 @@ def test_test_notification_rejects_unknown_channel(client):
                     headers={**auth(), "Origin": "http://localhost"},
                     data={"channel": "carrier-pigeon"})
     assert r.status_code == 400
+
+
+# --- Customizable RSVP notes hint --------------------------------------------
+
+def test_notes_hint_default_and_custom(client):
+    import app as app_module
+    default = app_module.DEFAULT_NOTES_HINT.encode()
+
+    # No hint provided -> the public notes box shows the neutral default,
+    # not the old potluck-assuming copy.
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Plain Meet", "datetime": "2099-09-01T12:00", "active": "on", "listed": "on"})
+    page = client.get("/plain-meet").data
+    assert default in page
+    assert b"Bringing a side dish" not in page
+
+    # Custom hint at creation -> shown verbatim as the placeholder.
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Potluck", "datetime": "2099-09-02T12:00", "active": "on", "listed": "on",
+        "notes_hint": "Bringing a dish? Tell us what!"})
+    assert b'placeholder="Bringing a dish? Tell us what!"' in client.get("/potluck").data
+
+    # Editing updates the hint, and the admin form shows the saved value.
+    client.post("/admin/potluck/edit", headers={**auth(), "Origin": "http://localhost"}, data={
+        "title": "Potluck", "datetime": "2099-09-02T12:00", "active": "on", "listed": "on",
+        "notes_hint": "Allergies? Let us know."})
+    assert b"Allergies? Let us know." in client.get("/potluck").data
+    assert b'value="Allergies? Let us know."' in client.get("/admin/potluck", headers=auth()).data

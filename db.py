@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS events (
     location    TEXT    NOT NULL DEFAULT '',
     address     TEXT    NOT NULL DEFAULT '',
     description TEXT    NOT NULL DEFAULT '',
+    notes_hint  TEXT    NOT NULL DEFAULT '',
     cover       TEXT,
     active      INTEGER NOT NULL DEFAULT 1,
     listed      INTEGER NOT NULL DEFAULT 0,
@@ -80,6 +81,8 @@ def init_db():
         cols = [r[1] for r in conn.execute("PRAGMA table_info(events)")]
         if "address" not in cols:
             conn.execute("ALTER TABLE events ADD COLUMN address TEXT NOT NULL DEFAULT ''")
+        if "notes_hint" not in cols:
+            conn.execute("ALTER TABLE events ADD COLUMN notes_hint TEXT NOT NULL DEFAULT ''")
         rcols = [r[1] for r in conn.execute("PRAGMA table_info(rsvps)")]
         if "token" not in rcols:
             conn.execute("ALTER TABLE rsvps ADD COLUMN token TEXT")
@@ -119,27 +122,29 @@ def slug_exists(slug):
     return get_event(slug) is not None
 
 
-def create_event(slug, title, dt, location, description, active=True, listed=False, address=""):
+def create_event(slug, title, dt, location, description, active=True, listed=False,
+                 address="", notes_hint=""):
     db = get_db()
     db.execute(
         """INSERT INTO events (slug, title, datetime, location, address, description,
-                               active, listed, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                               notes_hint, active, listed, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (slug, title, dt, location, address, description,
-         int(active), int(listed), _now()),
+         notes_hint, int(active), int(listed), _now()),
     )
     db.commit()
     return get_event(slug)
 
 
-def update_event(slug, title, dt, location, description, active, listed, address=""):
+def update_event(slug, title, dt, location, description, active, listed,
+                 address="", notes_hint=""):
     db = get_db()
     db.execute(
         """UPDATE events
            SET title = ?, datetime = ?, location = ?, address = ?, description = ?,
-               active = ?, listed = ?
+               notes_hint = ?, active = ?, listed = ?
            WHERE slug = ?""",
-        (title, dt, location, address, description, int(active), int(listed), slug),
+        (title, dt, location, address, description, notes_hint, int(active), int(listed), slug),
     )
     db.commit()
 
