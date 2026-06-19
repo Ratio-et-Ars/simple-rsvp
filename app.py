@@ -45,6 +45,10 @@ ALLOWED_EXTENSIONS = ("png", "jpg", "jpeg", "webp")
 # in an unexpected type.
 FORMAT_TO_EXT = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp"}
 
+# Neutral default for the public RSVP "notes" box. Events can override it per-event
+# (e.g. a potluck might ask "Bringing a side dish?"); blank falls back to this.
+DEFAULT_NOTES_HINT = "Anything we should know? Let us know!"
+
 app.teardown_appcontext(db.close_db)
 
 
@@ -159,6 +163,7 @@ def event_view(event):
         "maps_url": maps_url(event),
         "gcal_url": gcal_url(event),
         "cover_url": cover_url(event),
+        "notes_hint": event["notes_hint"] or DEFAULT_NOTES_HINT,
     }
 
 
@@ -421,11 +426,12 @@ def admin_new():
             location=request.form.get("location", "").strip(),
             address=request.form.get("address", "").strip(),
             description=request.form.get("description", "").strip(),
+            notes_hint=request.form.get("notes_hint", "").strip(),
             active=request.form.get("active") == "on",
             listed=request.form.get("listed") == "on",
         )
         return redirect(url_for("admin_event", slug=slug))
-    return render_template("admin/new.html")
+    return render_template("admin/new.html", default_notes_hint=DEFAULT_NOTES_HINT)
 
 
 @app.route("/admin/<slug>")
@@ -440,6 +446,7 @@ def admin_event(slug):
         rsvps=db.list_rsvps(event["id"]),
         counts=db.guest_counts(event["id"]),
         cover_url=cover_url(event),
+        default_notes_hint=DEFAULT_NOTES_HINT,
     )
 
 
@@ -456,6 +463,7 @@ def admin_edit_event(slug):
         location=request.form.get("location", "").strip(),
         address=request.form.get("address", "").strip(),
         description=request.form.get("description", "").strip(),
+        notes_hint=request.form.get("notes_hint", "").strip(),
         active=request.form.get("active") == "on",
         listed=request.form.get("listed") == "on",
     )

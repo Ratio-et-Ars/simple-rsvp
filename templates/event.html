@@ -87,7 +87,7 @@
 
         <div style="margin-bottom:1.25rem;">
           <div class="field-label">Notes &amp; Requests</div>
-          <textarea name="notes" placeholder="Bringing a side dish? Dietary needs? Let us know!">{{ my_rsvp.notes if my_rsvp else '' }}</textarea>
+          <textarea name="notes" placeholder="{{ notes_hint }}">{{ my_rsvp.notes if my_rsvp else '' }}</textarea>
         </div>
 
         <button type="submit" class="btn-block">
