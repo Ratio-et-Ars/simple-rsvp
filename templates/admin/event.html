@@ -48,7 +48,7 @@
     <label>Map address <span class="muted" style="font-weight:400">— optional; used by the Google Maps link</span>
       <input name="address" value="{{ event.address }}" placeholder="123 Main St, Anytown">
     </label>
-    <label>Description<textarea name="description">{{ event.description }}</textarea></label>
+    <label>Description<textarea name="description" rows="8">{{ event.description }}</textarea></label>
     <label class="check"><input type="checkbox" name="active" {{ 'checked' if event.active }}> Accepting RSVPs</label>
     <label class="check"><input type="checkbox" name="listed" {{ 'checked' if event.listed }}> Show on the public home page</label>
     <button type="submit" style="margin-top:0.5rem">Save Details</button>
