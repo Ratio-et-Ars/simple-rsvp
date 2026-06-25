@@ -205,6 +205,21 @@ def maps_url(event):
     return "https://www.google.com/maps/search/?api=1&query=" + quote(query)
 
 
+def guest_mailto(event, emails):
+    """A ``mailto:`` link that drafts an email to every guest in BCC.
+
+    The zero-config way to reach guests: opens the admin's own mail client with
+    addresses hidden from each other (BCC) and the subject pre-filled. Returns
+    None when nobody has left an email yet.
+    """
+    if not emails:
+        return None
+    params = urlencode({"subject": f"Update: {event['title']}"}, quote_via=quote)
+    # BCC addresses go in raw (joined by commas) — mail clients expect them
+    # unencoded, and addresses never contain characters that need escaping.
+    return "mailto:?bcc=" + ",".join(emails) + "&" + params
+
+
 def cover_url(event):
     """Cover image URL with an mtime cache-buster so a re-upload shows at once."""
     if not event["cover"]:
@@ -276,6 +291,7 @@ def submit_rsvp(slug):
     adults = safe_int(request.form.get("adults", 1))
     kids = safe_int(request.form.get("kids", 0))
     notes = request.form.get("notes", "").strip()[:1000]
+    email = request.form.get("email", "").strip()[:254]
 
     # If this browser already holds a token for an RSVP to this event, update
     # that row instead of creating a duplicate. The token is an unguessable
@@ -284,10 +300,10 @@ def submit_rsvp(slug):
     updated = bool(existing and existing["event_id"] == event["id"])
     if updated:
         token = existing["token"]
-        db.update_rsvp(existing["id"], name[:200], adults, kids, notes)
+        db.update_rsvp(existing["id"], name[:200], adults, kids, notes, email)
     else:
         token = secrets.token_urlsafe(16)
-        db.add_rsvp(event["id"], name[:200], adults, kids, notes, token)
+        db.add_rsvp(event["id"], name[:200], adults, kids, notes, token, email)
 
     # Best-effort ping to any configured + enabled channel (Discord/email).
     # Compute the fresh total and the per-channel toggles here, in the request
@@ -440,6 +456,7 @@ def admin_event(slug):
     event = db.get_event(slug)
     if not event:
         abort(404)
+    emails = db.guest_emails(event["id"])
     return render_template(
         "admin/event.html",
         event=event,
@@ -447,6 +464,11 @@ def admin_event(slug):
         counts=db.guest_counts(event["id"]),
         cover_url=cover_url(event),
         default_notes_hint=DEFAULT_NOTES_HINT,
+        email_count=len(emails),
+        mailto_url=guest_mailto(event, emails),
+        smtp_configured=notify.smtp_configured(),
+        broadcast_sent=request.args.get("sent"),
+        broadcast_error=request.args.get("error"),
     )
 
 
@@ -498,8 +520,34 @@ def admin_edit_rsvp(slug, rsvp_id):
             safe_int(request.form.get("adults", 0)),
             safe_int(request.form.get("kids", 0)),
             request.form.get("notes", "").strip(),
+            request.form.get("email", "").strip()[:254],
         )
     return redirect(url_for("admin_event", slug=slug))
+
+
+@app.route("/admin/<slug>/notify", methods=["POST"])
+@basic_auth_required
+def admin_notify_guests(slug):
+    """Server-side email broadcast to everyone who left an address.
+
+    The configured-SMTP counterpart to the mailto link: the admin writes a
+    subject + message here and the server sends it (guests Bcc'd). Result is
+    surfaced back on the manage page via query params, mirroring the Settings
+    test-notification pattern.
+    """
+    check_csrf()
+    event = db.get_event(slug)
+    if not event:
+        abort(404)
+    subject = request.form.get("subject", "").strip()[:200] or f"Update: {event['title']}"
+    message = request.form.get("message", "").strip()[:5000]
+    if not message:
+        return redirect(url_for("admin_event", slug=slug,
+                                error="Write a message before sending."))
+    error = notify.send_guest_broadcast(subject, message, db.guest_emails(event["id"]))
+    if error:
+        return redirect(url_for("admin_event", slug=slug, error=error))
+    return redirect(url_for("admin_event", slug=slug, sent="1"))
 
 
 @app.route("/admin/<slug>/export.csv")
@@ -510,10 +558,11 @@ def export_csv(slug):
         abort(404)
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["Name", "Adults", "Kids", "Notes"])
+    writer.writerow(["Name", "Email", "Adults", "Kids", "Notes"])
     for r in db.list_rsvps(event["id"]):
         writer.writerow([
-            csv_safe(r["name"]), r["adults"], r["kids"], csv_safe(r["notes"]),
+            csv_safe(r["name"]), csv_safe(r["email"]),
+            r["adults"], r["kids"], csv_safe(r["notes"]),
         ])
     return Response(
         buf.getvalue(),

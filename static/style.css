@@ -216,8 +216,11 @@ a.event-card:hover { text-decoration: none; }
   color: var(--mustard); margin-top: 0.25rem; display: inline-block;
 }
 .invitation .desc {
-  font-size: 1.1rem; font-style: italic; color: rgba(58,48,39,0.9);
-  max-width: 32rem; margin: 1.5rem auto 0;
+  font-size: 1.1rem; color: rgba(58,48,39,0.9);
+  max-width: 34rem; margin: 1.5rem auto 0;
+  /* Honor the line breaks the admin typed, and read it left-aligned like a
+     pinned note rather than a centered banner. */
+  text-align: left; white-space: pre-line; line-height: 1.65;
 }
 
 /* ---- Forms ---- */
@@ -225,6 +228,14 @@ label { display: block; font-weight: 700; margin-bottom: 0.4rem; }
 .field-label {
   font-size: 0.72rem; font-weight: 800; text-transform: uppercase;
   letter-spacing: 0.06em; color: var(--ink-faint); margin-bottom: 0.5rem;
+}
+.optional-tag {
+  font-weight: 700; text-transform: none; letter-spacing: 0;
+  color: var(--ink-faint); opacity: 0.75;
+}
+.field-hint {
+  font-size: 0.82rem; font-style: normal; color: var(--ink-soft);
+  margin: 0.5rem 0 0; line-height: 1.45; text-align: left;
 }
 input, textarea {
   width: 100%; font: inherit; color: var(--ink);

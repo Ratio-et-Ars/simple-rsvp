@@ -71,6 +71,13 @@
                  value="{{ my_rsvp.name if my_rsvp else '' }}">
         </div>
 
+        <div style="margin-bottom:1.25rem;">
+          <div class="field-label">Email <span class="optional-tag">optional</span></div>
+          <input class="input-underline" type="email" name="email" placeholder="you@example.com" autocomplete="email"
+                 value="{{ my_rsvp.email if my_rsvp else '' }}">
+          <p class="field-hint">Only used to reach you if the plans change (date, time, or location). No newsletters, no sharing — leave it blank if you'd rather not.</p>
+        </div>
+
         {% set a_val = my_rsvp.adults if my_rsvp else 1 %}
         {% set k_val = my_rsvp.kids if my_rsvp else 0 %}
         <div class="counters">

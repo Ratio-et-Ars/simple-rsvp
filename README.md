@@ -9,7 +9,9 @@ own URL (`/cigar-club`, `/summer-feast`, …).
 - 🎟️ **Multiple events**, each addressed by a slug
 - 🏠 Public home page lists your **highlighted** events; unlisted events stay
   private — reachable only by their link
-- ✉️ Collects RSVPs with names, adult/kid counts, and notes
+- ✉️ Collects RSVPs with names, adult/kid counts, notes, and an **optional** email
+- 📣 Reach every guest who left an email — a one-click BCC draft in your own mail
+  app, or a server-sent broadcast (when SMTP is configured) for reschedules & updates
 - 🧑‍💻 Admin dashboard to create/edit events, edit the guest list, and export CSV
 - 📸 Per-event cover image
 - 🔒 Admin protected by HTTP Basic Auth
@@ -83,6 +85,20 @@ endpoint never affects the guest. Stdlib only.
 To get a Discord webhook: **Server Settings → Integrations → Webhooks → New Webhook**,
 pick a channel, **Copy Webhook URL**. (Prefer phone push? ntfy.sh is a ~10-line add in
 `notify.py`.)
+
+### 📣 Reaching your guests (reschedules & updates)
+
+RSVPs collect an **optional** email — used for nothing but reaching that guest if
+plans change. Each event's manage page (`/admin/<slug>`) has a **Reach your guests**
+section with two ways to message everyone who left one:
+
+- **Email all guests** — opens a draft in *your own* mail app with every address in
+  BCC (hidden from each other). Works with zero configuration.
+- **Send from the server** — appears when `SMTP_HOST` is set; writes a subject +
+  message and the server sends it (guests BCC'd, replies routed to `NOTIFY_EMAIL`).
+
+So the same SMTP settings above power both admin notifications *and* outbound guest
+broadcasts. Guests who skip the email field simply aren't reachable this way.
 
 ---
 

@@ -144,6 +144,16 @@ def _send_email(subject, body):
     msg["From"] = _env("SMTP_FROM") or _env("SMTP_USER") or "rsvp@localhost"
     msg["To"] = _env("NOTIFY_EMAIL")
     msg.set_content(body)
+    _smtp_send(msg)
+
+
+def _smtp_send(msg):
+    """Open an SMTP connection (STARTTLS + optional auth) and send ``msg``.
+
+    Shared by the admin notification email and the guest broadcast. ``msg`` may
+    carry a ``Bcc`` header; ``send_message`` routes those recipients in the
+    envelope and strips the header before transmission.
+    """
     port = int(_env("SMTP_PORT") or 587)
     with smtplib.SMTP(_env("SMTP_HOST"), port, timeout=15) as s:
         if _env("SMTP_STARTTLS", "1").lower() not in ("0", "false", "no"):
@@ -152,3 +162,37 @@ def _send_email(subject, body):
         if user and password:
             s.login(user, password)
         s.send_message(msg)
+
+
+def smtp_configured():
+    """True when the server can send email on its own (broadcast path)."""
+    return bool(_env("SMTP_HOST"))
+
+
+def send_guest_broadcast(subject, body, recipients):
+    """Send one message to many guests via Bcc. Returns None on success, else an
+    error string (surfaced to the admin on the manage page).
+
+    Guests are Bcc'd so addresses stay private from one another. The admin's
+    ``NOTIFY_EMAIL`` (or the From address) goes in To, so there's always a real
+    recipient and the admin keeps a copy. Replies route back to the admin.
+    """
+    if not smtp_configured():
+        return "Email sending isn't configured on the server (set SMTP_HOST)."
+    recipients = [r for r in dict.fromkeys(r.strip() for r in recipients) if r]
+    if not recipients:
+        return "No guests have left an email address yet."
+    sender = _env("SMTP_FROM") or _env("SMTP_USER") or "rsvp@localhost"
+    reply_to = _env("NOTIFY_EMAIL") or sender
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = reply_to
+    msg["Bcc"] = ", ".join(recipients)
+    msg["Reply-To"] = reply_to
+    msg.set_content(body)
+    try:
+        _smtp_send(msg)
+        return None
+    except Exception as e:
+        return str(e)

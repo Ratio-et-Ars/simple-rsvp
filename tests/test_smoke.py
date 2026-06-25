@@ -61,19 +61,21 @@ def test_create_event_and_rsvp_flow(client):
     # It shows up on the public landing page (listed + active + future).
     assert b"Cigar Club" in client.get("/").data
 
-    # Submit an RSVP.
+    # Submit an RSVP (with an optional email this time).
     conf = client.post("/cigar-club/rsvp", data={
-        "name": "Jane", "adults": "2", "kids": "1", "notes": "On my way",
+        "name": "Jane", "email": "jane@example.com",
+        "adults": "2", "kids": "1", "notes": "On my way",
     })
     assert conf.status_code == 200
     assert b"You're on the list!" in conf.data
 
-    # Counts reflected in admin + CSV export.
+    # Counts reflected in admin + CSV export (Email is now a column).
     admin = client.get("/admin/cigar-club", headers=auth())
     assert b"3 total guests" in admin.data
     csv = client.get("/admin/cigar-club/export.csv", headers=auth())
     assert csv.status_code == 200
-    assert b"Jane,2,1,On my way" in csv.data
+    assert b"Name,Email,Adults,Kids,Notes" in csv.data
+    assert b"Jane,jane@example.com,2,1,On my way" in csv.data
 
 
 def test_unlisted_event_hidden_from_home_but_reachable(client):
@@ -488,3 +490,125 @@ def test_notes_hint_default_and_custom(client):
         "notes_hint": "Allergies? Let us know."})
     assert b"Allergies? Let us know." in client.get("/potluck").data
     assert b'value="Allergies? Let us know."' in client.get("/admin/potluck", headers=auth()).data
+
+
+# --- Guest email + reach-your-guests broadcast -------------------------------
+
+def _make_event_with_emails(client, slug="party"):
+    client.post("/admin/new", headers=auth(), data={
+        "title": slug.title(), "datetime": "2099-07-04T17:00", "active": "on", "listed": "on"})
+    client.post(f"/{slug}/rsvp", data={"name": "Ann", "email": "ann@example.com", "adults": "1"})
+    # A second browser/guest with no email — must stay reachable-less, not crash.
+    c2 = client.application.test_client()
+    c2.post(f"/{slug}/rsvp", data={"name": "Bo", "adults": "2"})
+    c3 = client.application.test_client()
+    c3.post(f"/{slug}/rsvp", data={"name": "Cy", "email": "cy@example.com", "adults": "1"})
+
+
+def test_email_is_optional_on_rsvp_form(client):
+    # The public form advertises email as optional and notification-only.
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Optin", "datetime": "2099-07-04T12:00", "active": "on", "listed": "on"})
+    page = client.get("/optin").data
+    assert b'name="email"' in page
+    assert b"optional" in page
+    assert b"if the plans change" in page
+    # And an RSVP with no email at all still succeeds.
+    r = client.post("/optin/rsvp", data={"name": "NoEmail", "adults": "1"})
+    assert r.status_code == 200
+
+
+def test_guest_emails_collected_and_deduped(client):
+    import app as app_module
+    _make_event_with_emails(client, "party")
+    with app_module.app.app_context():
+        import db
+        ev = db.get_event("party")
+        # Same email twice (different casing) collapses to one entry.
+        db.add_rsvp(ev["id"], "Ann2", 1, 0, "", email="ANN@example.com")
+        emails = db.guest_emails(ev["id"])
+        assert emails == ["ann@example.com", "cy@example.com"]
+
+
+def test_manage_page_shows_mailto_for_guests(client):
+    _make_event_with_emails(client, "party")
+    page = client.get("/admin/party", headers=auth()).data
+    assert b"Reach your guests" in page
+    assert b"Email all guests" in page
+    # mailto link carries both addresses in Bcc, subject prefilled.
+    assert b"mailto:?bcc=ann@example.com,cy@example.com" in page
+    assert b"2 guests have left an email" in page
+
+
+def test_manage_page_no_emails_message(client):
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Quiet", "datetime": "2099-07-04T12:00", "active": "on", "listed": "on"})
+    client.post("/quiet/rsvp", data={"name": "Solo", "adults": "1"})  # no email
+    page = client.get("/admin/quiet", headers=auth()).data
+    assert b"No guest has left an email yet" in page
+    assert b"mailto:" not in page
+
+
+def test_broadcast_route_without_smtp_redirects_with_error(client, monkeypatch):
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    _make_event_with_emails(client, "party")
+    r = client.post("/admin/party/notify",
+                    headers={**auth(), "Origin": "http://localhost"},
+                    data={"subject": "Moved!", "message": "New date is the 11th."})
+    assert r.status_code == 302
+    assert "error=" in r.headers["Location"]
+
+
+def test_broadcast_route_sends_when_configured(client, monkeypatch):
+    import app as app_module
+    sent = {}
+    monkeypatch.setattr(app_module.notify, "send_guest_broadcast",
+                        lambda subj, body, recips: sent.update(
+                            subject=subj, body=body, recips=list(recips)) or None)
+    _make_event_with_emails(client, "party")
+    r = client.post("/admin/party/notify",
+                    headers={**auth(), "Origin": "http://localhost"},
+                    data={"subject": "Moved!", "message": "New date is the 11th."})
+    assert r.status_code == 302
+    assert "sent=1" in r.headers["Location"]
+    assert sent["subject"] == "Moved!"
+    assert sent["recips"] == ["ann@example.com", "cy@example.com"]
+    # Empty message is rejected before any send.
+    sent.clear()
+    r2 = client.post("/admin/party/notify",
+                     headers={**auth(), "Origin": "http://localhost"},
+                     data={"message": "   "})
+    assert "error=" in r2.headers["Location"]
+    assert not sent
+
+
+def test_send_guest_broadcast_builds_bcc(monkeypatch):
+    import notify
+    monkeypatch.setenv("SMTP_HOST", "mail.example")
+    monkeypatch.setenv("SMTP_FROM", "rsvp@example.com")
+    monkeypatch.setenv("NOTIFY_EMAIL", "host@example.com")
+    captured = {}
+
+    def fake_send(msg):
+        captured["from"], captured["to"] = msg["From"], msg["To"]
+        captured["bcc"], captured["subject"] = msg["Bcc"], msg["Subject"]
+        captured["reply_to"], captured["body"] = msg["Reply-To"], msg.get_content()
+
+    monkeypatch.setattr(notify, "_smtp_send", fake_send)
+    err = notify.send_guest_broadcast("Moved!", "See you the 11th.",
+                                      ["a@x.com", "b@y.com", "a@x.com"])
+    assert err is None
+    assert captured["from"] == "rsvp@example.com"
+    assert captured["to"] == "host@example.com"        # admin keeps a copy
+    assert captured["reply_to"] == "host@example.com"  # replies route to admin
+    assert captured["bcc"] == "a@x.com, b@y.com"       # deduped, guests hidden
+    assert "See you the 11th." in captured["body"]
+
+
+def test_send_guest_broadcast_guards(monkeypatch):
+    import notify
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    assert "SMTP_HOST" in notify.send_guest_broadcast("s", "b", ["a@x.com"])
+    monkeypatch.setenv("SMTP_HOST", "mail.example")
+    assert notify.send_guest_broadcast("s", "b", []) == \
+        "No guests have left an email address yet."
