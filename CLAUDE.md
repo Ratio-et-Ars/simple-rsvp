@@ -58,7 +58,10 @@ Three layers, all server-rendered:
 - **`notify.py`** — best-effort RSVP notifications (Discord webhook + SMTP email),
   stdlib only. `submit_rsvp` calls `notify_rsvp(...)`, which fires on a daemon thread
   and swallows all errors, so a slow/broken endpoint never blocks or breaks an RSVP.
-  Channels are off unless their env var is set.
+  Channels are off unless their env var is set. The same SMTP wiring also powers
+  `send_guest_broadcast(...)` — the *synchronous*, admin-facing path that emails all
+  guests who left an address (BCC) when an event changes; it returns an error string
+  instead of swallowing failures, so the admin sees what happened.
 
 **Storage of state** (all under `DATA_DIR`, persisted by the Docker volume):
 - `rsvp.db` — events and RSVPs.
@@ -70,7 +73,8 @@ Three layers, all server-rendered:
   `/cover/<slug>`.
 - Admin (`@basic_auth_required`): `/admin`, `/admin/settings` (+ `/admin/settings/test`),
   `/admin/new`, `/admin/<slug>` (manage), `/admin/<slug>/edit`, `/admin/<slug>/delete`,
-  `/admin/<slug>/rsvp/<id>` (edit/delete), `/admin/<slug>/upload`, `/admin/<slug>/export.csv`.
+  `/admin/<slug>/rsvp/<id>` (edit/delete), `/admin/<slug>/notify` (email all guests),
+  `/admin/<slug>/upload`, `/admin/<slug>/export.csv`.
 
 ## Conventions / gotchas
 

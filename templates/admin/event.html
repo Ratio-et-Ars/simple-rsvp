@@ -12,6 +12,41 @@
     &nbsp;·&nbsp; <a href="{{ url_for('export_csv', slug=event.slug) }}">Download CSV</a></p>
 
   <hr>
+  <h2>Reach your guests</h2>
+  {% if broadcast_sent %}
+    <div class="card" style="border-color:var(--leaf);margin-bottom:1.25rem">
+      <strong>Message sent.</strong> It's on its way to {{ email_count }} guest{{ '' if email_count == 1 else 's' }} (Bcc'd).
+    </div>
+  {% elif broadcast_error %}
+    <div class="card" style="border-color:var(--barn-red);margin-bottom:1.25rem">
+      <strong>Couldn't send:</strong> {{ broadcast_error }}
+    </div>
+  {% endif %}
+
+  {% if email_count %}
+    <p class="muted">{{ email_count }} guest{{ 's' if email_count != 1 }} {{ 'has' if email_count == 1 else 'have' }} left an email — your way to tell everyone if the plans change.</p>
+
+    {% if mailto_url %}
+      <p><a class="btn btn-secondary" href="{{ mailto_url }}">✉ Email all guests</a></p>
+      <p class="muted" style="font-size:0.85rem">Opens a draft in your own mail app with every address in Bcc, so guests can't see each other's emails.</p>
+    {% endif %}
+
+    {% if smtp_configured %}
+      <form class="card" method="post" action="{{ url_for('admin_notify_guests', slug=event.slug) }}"
+            onsubmit="return confirm('Send this email to {{ email_count }} guest(s) now?')">
+        <p class="muted" style="margin-top:0">…or send it straight from the server — no mail app needed:</p>
+        <label>Subject<input name="subject" value="Update: {{ event.title }}"></label>
+        <label>Message<textarea name="message" rows="6" placeholder="Heads up — we've had to move this. The new date is…" required></textarea></label>
+        <button type="submit">Send to {{ email_count }} guest{{ '' if email_count == 1 else 's' }}</button>
+      </form>
+    {% else %}
+      <p class="muted" style="font-size:0.85rem">Want the server to send these for you (no mail app)? Set <code>SMTP_HOST</code> — see the README.</p>
+    {% endif %}
+  {% else %}
+    <p class="muted">No guest has left an email yet. Email is optional on the RSVP form; as people add one, you'll be able to message them all from here.</p>
+  {% endif %}
+
+  <hr>
   <h2>RSVPs</h2>
   {% if rsvps %}
     <div class="stack">
@@ -19,12 +54,14 @@
         <form class="card" method="post" action="{{ url_for('admin_edit_rsvp', slug=event.slug, rsvp_id=r.id) }}">
           <div class="row">
             <label>Name<input name="name" value="{{ r.name }}"></label>
-            <label>Notes<input name="notes" value="{{ r.notes }}"></label>
+            <label>Email <span class="muted" style="font-weight:400">— optional</span>
+              <input type="email" name="email" value="{{ r.email }}"></label>
           </div>
           <div class="row">
             <label>Adults<input type="number" name="adults" value="{{ r.adults }}" min="0"></label>
             <label>Kids<input type="number" name="kids" value="{{ r.kids }}" min="0"></label>
           </div>
+          <label>Notes<input name="notes" value="{{ r.notes }}"></label>
           <div class="btn-row" style="justify-content:flex-end">
             <button type="submit">Save</button>
             <button type="submit" name="delete" value="1" class="btn-danger"

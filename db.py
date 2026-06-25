@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS rsvps (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     name       TEXT    NOT NULL,
+    email      TEXT    NOT NULL DEFAULT '',
     adults     INTEGER NOT NULL DEFAULT 0,
     kids       INTEGER NOT NULL DEFAULT 0,
     notes      TEXT    NOT NULL DEFAULT '',
@@ -86,6 +87,8 @@ def init_db():
         rcols = [r[1] for r in conn.execute("PRAGMA table_info(rsvps)")]
         if "token" not in rcols:
             conn.execute("ALTER TABLE rsvps ADD COLUMN token TEXT")
+        if "email" not in rcols:
+            conn.execute("ALTER TABLE rsvps ADD COLUMN email TEXT NOT NULL DEFAULT ''")
         conn.commit()
     finally:
         conn.close()
@@ -170,6 +173,28 @@ def list_rsvps(event_id):
     ).fetchall()
 
 
+def guest_emails(event_id):
+    """Distinct, non-empty guest emails for an event, in RSVP order.
+
+    The reachable subset of guests — used to message everyone when an event
+    changes (e.g. a reschedule). Guests who left the email blank are simply
+    absent here; there's no other way to reach them.
+    """
+    rows = get_db().execute(
+        """SELECT email FROM rsvps
+           WHERE event_id = ? AND email != ''
+           ORDER BY created_at ASC""",
+        (event_id,),
+    ).fetchall()
+    seen, out = set(), []
+    for r in rows:
+        e = r["email"]
+        if e.lower() not in seen:
+            seen.add(e.lower())
+            out.append(e)
+    return out
+
+
 def guest_counts(event_id):
     row = get_db().execute(
         """SELECT COALESCE(SUM(adults), 0) AS adults,
@@ -181,12 +206,12 @@ def guest_counts(event_id):
     return {"adults": adults, "kids": kids, "total": adults + kids}
 
 
-def add_rsvp(event_id, name, adults, kids, notes, token=None):
+def add_rsvp(event_id, name, adults, kids, notes, token=None, email=""):
     db = get_db()
     db.execute(
-        """INSERT INTO rsvps (event_id, name, adults, kids, notes, token, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (event_id, name, adults, kids, notes, token, _now()),
+        """INSERT INTO rsvps (event_id, name, email, adults, kids, notes, token, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (event_id, name, email, adults, kids, notes, token, _now()),
     )
     db.commit()
 
@@ -199,11 +224,11 @@ def get_rsvp_by_token(token):
     ).fetchone()
 
 
-def update_rsvp(rsvp_id, name, adults, kids, notes):
+def update_rsvp(rsvp_id, name, adults, kids, notes, email=""):
     db = get_db()
     db.execute(
-        "UPDATE rsvps SET name = ?, adults = ?, kids = ?, notes = ? WHERE id = ?",
-        (name, adults, kids, notes, rsvp_id),
+        "UPDATE rsvps SET name = ?, email = ?, adults = ?, kids = ?, notes = ? WHERE id = ?",
+        (name, email, adults, kids, notes, rsvp_id),
     )
     db.commit()
 
