@@ -374,3 +374,86 @@ details.inactive-fold table { margin-top: 0.5rem; }
   .invitation .body { padding: 1.5rem 1.1rem; }
   .row { flex-direction: column; gap: 0; }
 }
+
+/* ---- Printable flyer (admin) ---- */
+.flyer {
+  background: #fff; color: var(--ink);
+  border: 1px solid var(--pulp); border-radius: 4px;
+  box-shadow: var(--shadow-card);
+  margin-top: 2rem; padding: 2.25rem 2rem 0;
+  display: flex; flex-direction: column;
+  text-align: center;
+}
+.flyer-body { flex: 1; padding-bottom: 2.25rem; }
+.flyer-cover {
+  width: 100%; max-height: 220px; object-fit: cover;
+  border-radius: 10px; margin-bottom: 1.5rem;
+}
+.flyer-title { font-size: clamp(2.2rem, 6vw, 3.2rem); margin-bottom: 0.75rem; }
+.flyer-when { font-family: var(--head); font-weight: 700; font-size: 1.35rem; margin-bottom: 0.35rem; }
+.flyer-where { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.25rem; }
+.flyer-address { display: block; font-weight: 400; font-size: 0.95rem; color: var(--ink-soft); }
+.flyer-desc {
+  white-space: pre-line; max-width: 34rem; margin: 1.25rem auto;
+  font-size: 1.02rem;
+}
+.flyer-rsvp { margin-top: 1.5rem; }
+.flyer-qr { width: 13.5rem; max-width: 60%; height: auto; }
+.flyer-scan { font-size: 1.2rem; margin: 0.5rem 0 0; line-height: 1.35; }
+.flyer-scan span { display: block; font-size: 0.98rem; color: var(--ink-soft); }
+.flyer-contact { font-size: 1.1rem; margin: 1.5rem 0 0; }
+
+/* Tear-off tabs: dashed cut lines, URL rotated to read bottom-up. */
+.tearoffs {
+  display: flex; margin: 0 -2rem;
+  border-top: 1.5px dashed var(--ink-faint);
+}
+.tearoff {
+  flex: 1; min-width: 0;
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  font-size: 0.72rem; letter-spacing: 0.02em; color: var(--ink);
+  padding: 0.75rem 0; height: 8.5rem;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  border-left: 1.5px dashed var(--ink-faint);
+}
+.tearoff:first-child { border-left: none; }
+
+@media print {
+  .site-header, .site-footer, .no-print { display: none !important; }
+  body { background: #fff; }
+  main.container { max-width: none; padding: 0; }
+  .flyer {
+    border: none; border-radius: 0; box-shadow: none;
+    margin: 0; min-height: 9.4in;
+  }
+  .tearoffs { break-inside: avoid; }
+}
+
+/* Optional "Please RSVP by ___" deadline line. */
+.flyer-deadline { font-size: 1.15rem; font-weight: 800; margin: 1.5rem 0 0; }
+.flyer-deadline + .flyer-contact { margin-top: 0.35rem; }
+
+/* ---- 4-per-page handbills: a 2x2 grid of identical quarter-sheet cards,
+       dashed cut lines between them. ---- */
+.handbills { display: grid; grid-template-columns: 1fr 1fr; padding: 0; }
+.handbill {
+  padding: 2rem 1.25rem; text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-bottom: 1.5px dashed var(--ink-faint);
+}
+.handbill:nth-child(odd) { border-right: 1.5px dashed var(--ink-faint); }
+.handbill:nth-child(n+3) { border-bottom: none; }
+.handbill p { margin: 0; }
+.hb-title { font-size: 1.55rem; margin-bottom: 0.35rem; }
+.hb-when { font-family: var(--head); font-weight: 700; font-size: 1.02rem; }
+.hb-where { font-weight: 700; font-size: 0.95rem; }
+.hb-qr { width: 7.5rem; max-width: 70%; height: auto; margin-top: 0.75rem; }
+.handbill .hb-scan { font-size: 0.98rem; line-height: 1.3; margin-top: 0.35rem; }
+.handbill .hb-scan span { display: block; font-size: 0.8rem; color: var(--ink-soft); }
+.handbill .hb-deadline { font-weight: 800; font-size: 0.95rem; margin-top: 0.7rem; }
+.handbill .hb-contact { font-size: 0.88rem; margin-top: 0.35rem; }
+
+@media print {
+  .handbills { grid-template-rows: 1fr 1fr; }
+}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Flyer · {{ event.title }}{% endblock %}
+{% block content %}
+  <div class="no-print">
+    <p><a href="{{ url_for('admin_event', slug=event.slug) }}">← Back to {{ event.title }}</a></p>
+    <h1>Print a flyer</h1>
+    <p class="muted">Below is a print preview. Use your browser's print dialog — the controls and site header won't appear on paper.</p>
+    <form class="card" method="get">
+      <input type="hidden" name="opts" value="1">
+      <div class="row">
+        <label>Contact name <span class="muted" style="font-weight:400">— optional</span>
+          <input name="contact_name" value="{{ contact_name }}" placeholder="Rachel"></label>
+        <label>Phone <span class="muted" style="font-weight:400">— adds a "call or text" line</span>
+          <input name="contact_phone" value="{{ contact_phone }}" placeholder="(555) 123-4567"></label>
+      </div>
+      <label>RSVP by <span class="muted" style="font-weight:400">— optional; adds a "Please RSVP by ___" line</span>
+        <input name="rsvp_by" value="{{ rsvp_by }}" placeholder="October 10"></label>
+      <div class="field-label" style="margin-top:0.75rem">Layout</div>
+      <label class="check"><input type="radio" name="layout" value="full" {{ 'checked' if layout != 'handbills' }}> Full page</label>
+      <label class="check"><input type="radio" name="layout" value="handbills" {{ 'checked' if layout == 'handbills' }}> 4 per page — cut into handbills to pass out</label>
+      {% if layout != 'handbills' %}
+        {% if cover_url %}
+          <label class="check"><input type="checkbox" name="cover" {{ 'checked' if show_cover }}> Include the cover image</label>
+        {% endif %}
+        <label class="check"><input type="checkbox" name="tabs" {{ 'checked' if tabs }}> Tear-off tabs along the bottom — for bulletin boards</label>
+      {% endif %}
+      <div class="btn-row">
+        <button type="submit" class="btn-secondary">Update preview</button>
+        <button type="button" onclick="window.print()">Print</button>
+      </div>
+      <p class="muted" style="font-size:0.85rem;margin:0.75rem 0 0">The QR code points to <strong>{{ public_url }}</strong>. If that's not your real address, open this page from your public domain before printing.</p>
+    </form>
+  </div>
+
+  {% if layout == 'handbills' %}
+    <div class="flyer handbills">
+      {% for _ in range(4) %}
+        <div class="handbill">
+          <h2 class="hb-title">{{ event.title }}</h2>
+          <p class="hb-when">{{ date_str }}{% if time_str %} · {{ time_str }}{% endif %}</p>
+          {% if event.location %}<p class="hb-where">{{ event.location }}</p>{% endif %}
+          <img class="hb-qr" src="{{ qr_src }}" alt="QR code for {{ public_url }}">
+          <p class="hb-scan"><strong>Scan to RSVP</strong><span>or visit {{ display_url }}</span></p>
+          {% if rsvp_by %}<p class="hb-deadline">Please RSVP by {{ rsvp_by }}</p>{% endif %}
+          {% if contact_phone %}<p class="hb-contact">Questions? Call or text {% if contact_name %}{{ contact_name }} at {% endif %}<strong>{{ contact_phone }}</strong></p>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="flyer">
+      <div class="flyer-body">
+        {% if cover_url and show_cover %}<img class="flyer-cover" src="{{ cover_url }}" alt="">{% endif %}
+        <h1 class="flyer-title">{{ event.title }}</h1>
+        <p class="flyer-when">{{ date_str }}{% if time_str %} · {{ time_str }}{% endif %}</p>
+        {% if event.location %}
+          <p class="flyer-where">{{ event.location }}{% if event.address %}<span class="flyer-address">{{ event.address }}</span>{% endif %}</p>
+        {% endif %}
+        {% if event.description %}<p class="flyer-desc">{{ event.description }}</p>{% endif %}
+        <div class="flyer-rsvp">
+          <img class="flyer-qr" src="{{ qr_src }}" alt="QR code for {{ public_url }}">
+          <p class="flyer-scan"><strong>Scan to RSVP</strong><span>or visit {{ display_url }}</span></p>
+        </div>
+        {% if rsvp_by %}<p class="flyer-deadline">Please RSVP by {{ rsvp_by }}</p>{% endif %}
+        {% if contact_phone %}
+          <p class="flyer-contact">Questions? Call or text {% if contact_name %}{{ contact_name }} at {% endif %}<strong>{{ contact_phone }}</strong></p>
+        {% endif %}
+      </div>
+      {% if tabs %}
+        <div class="tearoffs">
+          {% for _ in range(8) %}<div class="tearoff">{{ display_url }}</div>{% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}
