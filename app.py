@@ -22,6 +22,7 @@ from flask import (
 )
 from werkzeug.exceptions import HTTPException
 from PIL import Image, ImageOps
+import segno
 
 import db
 import notify
@@ -469,6 +470,41 @@ def admin_event(slug):
         smtp_configured=notify.smtp_configured(),
         broadcast_sent=request.args.get("sent"),
         broadcast_error=request.args.get("error"),
+    )
+
+
+@app.route("/admin/<slug>/flyer")
+@basic_auth_required
+def event_flyer(slug):
+    """Print-ready flyer for an event: QR code to the RSVP page, the key
+    details, an optional "call or text ___" contact line, and optional
+    tear-off tabs for bulletin boards. Contact info and the tabs toggle come
+    from query params (the on-page form), so nothing extra is stored.
+    """
+    event = db.get_event(slug)
+    if not event:
+        abort(404)
+    # The QR encodes the public event URL as seen by this request's Host
+    # header — print the flyer from the real domain, not localhost.
+    public_url = url_for("event_page", slug=slug, _external=True)
+    qr = segno.make(public_url, error="m")
+    # "opts" is a hidden marker the form always sends; without it this is a
+    # first visit and the defaults apply (cover shown, no tear-off tabs).
+    # Unchecked checkboxes don't appear in a GET submit, so the marker is how
+    # we tell "unchecked" apart from "never asked".
+    submitted = "opts" in request.args
+    return render_template(
+        "admin/flyer.html",
+        qr_src=qr.svg_data_uri(dark="#3A3027", scale=10),
+        public_url=public_url,
+        display_url=re.sub(r"^https?://", "", public_url).rstrip("/"),
+        contact_name=request.args.get("contact_name", "").strip()[:100],
+        contact_phone=request.args.get("contact_phone", "").strip()[:50],
+        rsvp_by=request.args.get("rsvp_by", "").strip()[:100],
+        layout="handbills" if request.args.get("layout") == "handbills" else "full",
+        show_cover=request.args.get("cover") == "on" if submitted else True,
+        tabs=request.args.get("tabs") == "on",
+        **event_view(event),
     )
 
 

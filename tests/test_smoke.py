@@ -492,6 +492,112 @@ def test_notes_hint_default_and_custom(client):
     assert b'value="Allergies? Let us know."' in client.get("/admin/potluck", headers=auth()).data
 
 
+# --- Printable flyer ----------------------------------------------------------
+
+def test_flyer_requires_auth(client):
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Barn Dance", "datetime": "2099-10-01T18:00", "active": "on", "listed": "on"})
+    assert client.get("/admin/barn-dance/flyer").status_code == 401
+    assert client.get("/admin/nope/flyer", headers=auth()).status_code == 404
+
+
+def test_flyer_renders_qr_and_details(client):
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Barn Dance", "datetime": "2099-10-01T18:00",
+        "location": "The Barn", "address": "1 Hay Way",
+        "description": "Bring your boots.", "active": "on", "listed": "on"})
+    page = client.get("/admin/barn-dance/flyer", headers=auth()).data
+    assert b"Barn Dance" in page
+    assert b"The Barn" in page
+    assert b"Bring your boots." in page
+    # QR is an inline SVG data URI pointing at the public event URL.
+    assert b'src="data:image/svg+xml' in page
+    assert b"Scan to RSVP" in page
+    assert b"/barn-dance" in page
+    # No contact info given -> no contact line; no tabs by default.
+    assert b"Call or text" not in page
+    assert b'class="tearoff"' not in page
+
+
+def test_flyer_contact_line_and_tearoff_tabs(client):
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Barn Dance", "datetime": "2099-10-01T18:00", "active": "on", "listed": "on"})
+    page = client.get(
+        "/admin/barn-dance/flyer?contact_name=Rachel&contact_phone=555-1234&tabs=on",
+        headers=auth()).data
+    assert b"Call or text Rachel at <strong>555-1234</strong>" in page
+    assert page.count(b'class="tearoff"') == 8
+    # Phone alone still gets a contact line, without the name.
+    page2 = client.get("/admin/barn-dance/flyer?contact_phone=555-1234",
+                       headers=auth()).data
+    assert b"Call or text <strong>555-1234</strong>" in page2
+
+
+def test_flyer_rsvp_by_line(client):
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Barn Dance", "datetime": "2099-10-01T18:00", "active": "on", "listed": "on"})
+    page = client.get("/admin/barn-dance/flyer?rsvp_by=October+10", headers=auth()).data
+    assert b"Please RSVP by October 10" in page
+    # Left blank -> no deadline line on the flyer.
+    assert b'class="flyer-deadline"' not in client.get(
+        "/admin/barn-dance/flyer", headers=auth()).data
+
+
+def test_flyer_handbill_layout(client):
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Barn Dance", "datetime": "2099-10-01T18:00",
+        "location": "The Barn", "description": "Bring your boots.",
+        "active": "on", "listed": "on"})
+    page = client.get(
+        "/admin/barn-dance/flyer?layout=handbills&rsvp_by=Oct+10&contact_phone=555-1234",
+        headers=auth()).data
+    # Four identical compact cards, each with the QR and the key lines...
+    assert page.count(b'class="handbill"') == 4
+    assert page.count(b'src="data:image/svg+xml') == 4
+    assert page.count(b"Please RSVP by Oct 10") == 4
+    assert page.count(b"Call or text") == 4
+    # ...but no description, and no cover/tabs options (they're full-page only).
+    assert b"Bring your boots." not in page
+    assert b'name="tabs"' not in page
+    assert b'name="cover"' not in page
+
+
+def test_flyer_cover_option(client):
+    import app as app_module
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Barn Dance", "datetime": "2099-10-01T18:00", "active": "on", "listed": "on"})
+    with app_module.app.app_context():
+        import db
+        db.set_cover("barn-dance", "barn-dance.png")
+    # Cover set -> shown by default (first visit, no form params yet).
+    page = client.get("/admin/barn-dance/flyer", headers=auth()).data
+    assert b'class="flyer-cover"' in page
+    assert b'name="cover" checked' in page
+    # Form submitted with the box unchecked -> cover left off the flyer.
+    page2 = client.get("/admin/barn-dance/flyer?opts=1", headers=auth()).data
+    assert b'class="flyer-cover"' not in page2
+    assert b'name="cover" checked' not in page2
+    # ...and re-checked -> shown again.
+    page3 = client.get("/admin/barn-dance/flyer?opts=1&cover=on", headers=auth()).data
+    assert b'class="flyer-cover"' in page3
+
+
+def test_flyer_no_cover_no_option(client):
+    # Event without a cover image: no cover on the flyer, no dead checkbox.
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Plain Party", "datetime": "2099-10-01T18:00", "active": "on", "listed": "on"})
+    page = client.get("/admin/plain-party/flyer", headers=auth()).data
+    assert b'class="flyer-cover"' not in page
+    assert b'name="cover"' not in page
+
+
+def test_flyer_link_on_manage_page(client):
+    client.post("/admin/new", headers=auth(), data={
+        "title": "Barn Dance", "datetime": "2099-10-01T18:00", "active": "on", "listed": "on"})
+    assert b'href="/admin/barn-dance/flyer"' in client.get(
+        "/admin/barn-dance", headers=auth()).data
+
+
 # --- Guest email + reach-your-guests broadcast -------------------------------
 
 def _make_event_with_emails(client, slug="party"):
