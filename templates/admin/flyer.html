@@ -47,7 +47,7 @@
       {% endfor %}
     </div>
   {% else %}
-    <div class="flyer">
+    <div class="flyer{{ ' has-tabs' if tabs }}">
       <div class="flyer-body">
         {% if cover_url and show_cover %}<img class="flyer-cover" src="{{ cover_url }}" alt="">{% endif %}
         <h1 class="flyer-title">{{ event.title }}</h1>
