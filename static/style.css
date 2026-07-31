@@ -385,9 +385,13 @@ details.inactive-fold table { margin-top: 0.5rem; }
   text-align: center;
 }
 .flyer-body { flex: 1; padding-bottom: 2.25rem; }
+/* Never crop the cover on a flyer — show the whole image, scaled to fit.
+   (The event page crops to a banner; here a portrait painting would lose
+   its subject's head.) */
 .flyer-cover {
-  width: 100%; max-height: 220px; object-fit: cover;
-  border-radius: 10px; margin-bottom: 1.5rem;
+  display: block; margin: 0 auto 1.5rem;
+  max-width: 100%; max-height: 280px; width: auto; height: auto;
+  border-radius: 10px;
 }
 .flyer-title { font-size: clamp(2.2rem, 6vw, 3.2rem); margin-bottom: 0.75rem; }
 .flyer-when { font-family: var(--head); font-weight: 700; font-size: 1.35rem; margin-bottom: 0.35rem; }
@@ -419,19 +423,20 @@ details.inactive-fold table { margin-top: 0.5rem; }
 }
 .tearoff:first-child { border-left: none; }
 
-/* One page, guaranteed: fixed margins make the printable area predictable,
-   and the flyer gets a hard height that fits it (letter and A4 alike). The
-   tab strip never shrinks; the description is the flexible piece that gets
-   clipped if content is truly too long. With tabs on, the cover, QR, and
-   title print a notch smaller so everything shares the sheet. */
+/* One page, guaranteed: the flyer is sized to the printable page itself
+   (100vh in paged media = the page area inside the margins, at any paper
+   size, margin setting, or print scale), so the tab strip always lands on
+   the bottom edge. The strip never shrinks; the description is the
+   flexible piece that gets clipped if content is truly too long. With
+   tabs on, the cover, QR, and title print a notch smaller. */
 @page { margin: 0.4in; }
 @media print {
   .site-header, .site-footer, .no-print { display: none !important; }
-  body { background: #fff; }
+  body { background: #fff; min-height: 0; }
   main.container { max-width: none; padding: 0; }
   .flyer {
     border: none; border-radius: 0; box-shadow: none;
-    margin: 0; height: 10.1in; overflow: hidden;
+    margin: 0; height: calc(100vh - 2px); overflow: hidden;
     padding: 1.25rem 1.5rem 0;
   }
   .flyer-body {
@@ -439,7 +444,7 @@ details.inactive-fold table { margin-top: 0.5rem; }
     flex: 1; min-height: 0; padding-bottom: 1rem;
   }
   .flyer-body > * { flex-shrink: 0; }
-  .flyer-cover { width: 100%; max-height: 2.4in; margin-bottom: 1rem; }
+  .flyer-cover { max-height: 2.8in; margin-bottom: 1rem; }
   .flyer-desc { flex-shrink: 1; min-height: 0; overflow: hidden; font-size: 0.98rem; margin: 1rem auto; }
   .flyer-qr { width: 2.2in; }
   .tearoffs { flex-shrink: 0; margin: 0 -1.5rem; }
